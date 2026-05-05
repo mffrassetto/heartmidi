@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Heartopia MIDI Converter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --surface: #1a1a2e;
+            --surface-dim: #121414;
+            --surface-container: #1e2020;
+            --primary: #4be277;
+            --primary-container: #22c55e;
+            --on-primary: #003915;
+            --secondary: #d0bcff;
+            --background: #0f0f1a;
+            --on-surface: #e2e2e2;
+            --on-surface-variant: #bccbb9;
+            --muted: #a1a1aa;
+            --border-subtle: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(180deg, var(--background) 0%, var(--surface) 100%);
+            color: var(--on-surface);
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+            margin-bottom: 2rem;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 1.5rem;
+        }
+
+        .nav-links a {
+            color: var(--muted);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--on-surface);
+        }
+
+        /* Main Card */
+        .card {
+            background: var(--surface-container);
+            border: 1px solid var(--border-subtle);
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            line-height: 1.2;
+        }
+
+        .subtitle {
+            color: var(--on-surface-variant);
+            margin-bottom: 2rem;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .tab {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid var(--border-subtle);
+            background: transparent;
+            color: var(--muted);
+        }
+
+        .tab.active {
+            background: var(--primary-container);
+            color: var(--on-primary);
+            border-color: var(--primary-container);
+        }
+
+        /* Input */
+        .input-group {
+            margin-bottom: 1rem;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--on-surface-variant);
+            font-size: 0.875rem;
+        }
+
+        input[type="text"],
+        input[type="url"],
+        select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-subtle);
+            background: var(--surface-dim);
+            color: var(--on-surface);
+            font-size: 1rem;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        /* Checkbox */
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 1rem 0;
+        }
+
+        .checkbox-group input {
+            width: 1.25rem;
+            height: 1.25rem;
+            accent-color: var(--primary-container);
+        }
+
+        /* Button */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 1rem 2rem;
+            border-radius: 0.75rem;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            width: 100%;
+        }
+
+        .btn-primary {
+            background: var(--primary-container);
+            color: var(--on-primary);
+        }
+
+        .btn-primary:hover {
+            filter: brightness(1.1);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Progress */
+        .progress-container {
+            display: none;
+            margin-top: 1.5rem;
+        }
+
+        .progress-container.active {
+            display: block;
+        }
+
+        .progress-bar {
+            height: 0.5rem;
+            background: var(--surface-dim);
+            border-radius: 0.25rem;
+            overflow: hidden;
+            margin-bottom: 0.5rem;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary-container);
+            border-radius: 0.25rem;
+            transition: width 0.3s;
+        }
+
+        .progress-text {
+            color: var(--on-surface-variant);
+            font-size: 0.875rem;
+        }
+
+        /* Results */
+        .result-card {
+            display: none;
+        }
+
+        .result-card.active {
+            display: block;
+        }
+
+        .result-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        .result-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .stat {
+            background: var(--surface-dim);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--muted);
+        }
+
+        .result-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border-subtle);
+            color: var(--on-surface);
+        }
+
+        /* Hidden */
+        .hidden {
+            display: none !important;
+        }
+
+        /* File input */
+        .file-drop {
+            border: 2px dashed var(--border-subtle);
+            border-radius: 0.5rem;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .file-drop:hover {
+            border-color: var(--primary);
+        }
+
+        .file-drop input {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">Heartopia MIDI</div>
+            <nav class="nav-links">
+                <a href="#">Dashboard</a>
+                <a href="#">History</a>
+                <a href="#">Library</a>
+            </nav>
+        </header>
+
+        <!-- Converter Form -->
+        <main id="converter-view">
+            <div class="card">
+                <h1>Converta áudio para MIDI</h1>
+                <p class="subtitle">Transforme suas ideias musicais em dados MIDI precisos instantaneamente. Suporta links do YouTube ou arquivos locais.</p>
+
+                <div class="tabs">
+                    <button class="tab active" data-tab="url">URL do YouTube</button>
+                    <button class="tab" data-tab="file">Arquivo Local</button>
+                </div>
+
+                <!-- URL Input -->
+                <div id="url-input">
+                    <div class="input-group">
+                        <label>Link do YouTube</label>
+                        <input type="url" id="youtube-url" placeholder="https://youtube.com/watch?v=...">
+                    </div>
+                </div>
+
+                <!-- File Input -->
+                <div id="file-input" class="hidden">
+                    <div class="file-drop" id="drop-zone">
+                        <input type="file" id="audio-file" accept="audio/*">
+                        <p>Arraste o arquivo aqui ou clique para selecionar</p>
+                        <p style="font-size: 0.875rem; color: var(--muted);">MP3, WAV, FLAC</p>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>Instrumento Destino</label>
+                    <select id="instrument">
+                        <option value="piano">Piano</option>
+                        <option value="guitar">Guitar</option>
+                        <option value="drums">Drums</option>
+                        <option value="bass">Bass</option>
+                    </select>
+                </div>
+
+                <div class="checkbox-group">
+                    <input type="checkbox" id="apply-filters" checked>
+                    <label for="apply-filters">Filtros Heartopia Ativos</label>
+                </div>
+
+                <button class="btn btn-primary" id="convert-btn">
+                    <span>Converter</span>
+                </button>
+
+                <!-- Progress -->
+                <div class="progress-container" id="progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+                    </div>
+                    <p class="progress-text" id="progress-text">Processando...</p>
+                </div>
+            </div>
+        </main>
+
+        <!-- Result View -->
+        <main id="result-view" class="hidden">
+            <div class="card result-card active">
+                <div class="result-icon">✓</div>
+                <h1>Analysis Complete</h1>
+                <p class="subtitle">Your audio file has been successfully processed into MIDI data.</p>
+
+                <div class="result-stats">
+                    <div class="stat">
+                        <div class="stat-value" id="file-name">-</div>
+                        <div class="stat-label">Source Audio</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="duration">-</div>
+                        <div class="stat-label">Duration</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="notes">-</div>
+                        <div class="stat-label">Detected Notes</div>
+                    </div>
+                </div>
+
+                <div class="result-actions">
+                    <button class="btn btn-outline" id="new-upload-btn">Novo Upload</button>
+                    <button class="btn btn-primary" id="download-btn">Download MIDI</button>
+                </div>
+            </div>
+        </main>
+
+        <footer style="text-align: center; padding: 2rem; color: var(--muted); font-size: 0.875rem;">
+            <p>© 2024 Heartopia. Precision Audio to MIDI conversion.</p>
+        </footer>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8000';
+
+        const tabs = document.querySelectorAll('.tab');
+        const urlInput = document.getElementById('url-input');
+        const fileInput = document.getElementById('file-input');
+        const convertBtn = document.getElementById('convert-btn');
+        const progress = document.getElementById('progress');
+        const progressFill = document.getElementById('progress-fill');
+        const progressText = document.getElementById('progress-text');
+        const converterView = document.getElementById('converter-view');
+        const resultView = document.getElementById('result-view');
+        const newUploadBtn = document.getElementById('new-upload-btn');
+        const downloadBtn = document.getElementById('download-btn');
+
+        let currentJobId = null;
+        let pollingInterval = null;
+
+        // Tabs
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                if (tab.dataset.tab === 'url') {
+                    urlInput.classList.remove('hidden');
+                    fileInput.classList.add('hidden');
+                } else {
+                    urlInput.classList.add('hidden');
+                    fileInput.classList.remove('hidden');
+                }
+            });
+        });
+
+        // File Drop
+        const dropZone = document.getElementById('drop-zone');
+        const audioFile = document.getElementById('audio-file');
+
+        dropZone.addEventListener('click', () => audioFile.click());
+        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = 'var(--primary)'; });
+        dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = ''; });
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            dropZone.style.borderColor = '';
+            if (e.dataTransfer.files.length) audioFile.files = e.dataTransfer.files;
+        });
+
+        // Convert
+        convertBtn.addEventListener('click', async () => {
+            const activeTab = document.querySelector('.tab.active').dataset.tab;
+            const url = document.getElementById('youtube-url').value;
+            const file = audioFile.files[0];
+            const instrument = document.getElementById('instrument').value;
+            const applyFilters = document.getElementById('apply-filters').checked;
+
+            if (activeTab === 'url' && !url) {
+                alert('Por favor, insira a URL do YouTube');
+                return;
+            }
+            if (activeTab === 'file' && !file) {
+                alert('Por favor, selecione um arquivo');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('source', activeTab);
+            if (activeTab === 'url') formData.append('url', url);
+            if (activeTab === 'file') formData.append('file', file);
+            formData.append('instrument', instrument);
+            formData.append('apply_filters', applyFilters);
+
+            convertBtn.disabled = true;
+            progress.classList.add('active');
+            updateProgress(10, 'Iniciando processamento...');
+
+            try {
+                const res = await fetch(`${API_URL}/convert`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                currentJobId = data.job_id;
+
+                pollingInterval = setInterval(() => checkStatus(currentJobId), 2000);
+            } catch (err) {
+                alert('Erro ao processar: ' + err.message);
+                convertBtn.disabled = false;
+                progress.classList.remove('active');
+            }
+        });
+
+        async function checkStatus(jobId) {
+            try {
+                const res = await fetch(`${API_URL}/status/${jobId}`);
+                const data = await res.json();
+
+                updateProgress(data.progress, data.stage);
+
+                if (data.status === 'completed') {
+                    clearInterval(pollingInterval);
+                    showResult(data);
+                } else if (data.status === 'error') {
+                    clearInterval(pollingInterval);
+                    alert('Erro: ' + data.error);
+                    convertBtn.disabled = false;
+                    progress.classList.remove('active');
+                }
+            } catch (err) {
+                console.error('Status check failed:', err);
+            }
+        }
+
+        function updateProgress(percent, text) {
+            progressFill.style.width = percent + '%';
+            progressText.textContent = text;
+        }
+
+        function showResult(data) {
+            document.getElementById('file-name').textContent = data.file_name || 'audio_file.wav';
+            document.getElementById('duration').textContent = data.duration || '02:14';
+            document.getElementById('notes').textContent = data.note_count || '1,048';
+
+            converterView.classList.add('hidden');
+            resultView.classList.remove('hidden');
+        }
+
+        newUploadBtn.addEventListener('click', () => {
+            resultView.classList.add('hidden');
+            converterView.classList.remove('hidden');
+            convertBtn.disabled = false;
+            progress.classList.remove('active');
+            currentJobId = null;
+        });
+
+        downloadBtn.addEventListener('click', () => {
+            if (currentJobId) {
+                window.open(`${API_URL}/download/${currentJobId}`, '_blank');
+            }
+        });
+    </script>
+</body>
+</html>
