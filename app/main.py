@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import aiofiles
+import uvicorn
 
 app = FastAPI(title="Heartopia MIDI Converter", version="1.0.0")
 
@@ -19,7 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-import os
+port = int(os.environ.get("PORT", 8000))
 
 DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
