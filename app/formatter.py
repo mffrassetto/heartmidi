@@ -87,20 +87,107 @@ def enforce_channel_and_program(midi_path: Path, output_path: Path, channel: int
     ch = max(0, min(15, int(channel)))
     prog = max(0, min(127, int(program)))
     mid = MidiFile(str(midi_path))
-    # Ensure a program change exists at start of first non-meta track
-    for t in mid.tracks:
-        # Insert a program change at the beginning if none present
+    # Identify meta-only track (usually track 0) and instrument tracks
+    meta_track_index = 0 if mid.tracks else -1
+    # Remove any channel messages from the meta-only track first
+    if meta_track_index >= 0 and meta_track_index < len(mid.tracks):
+        t0 = mid.tracks[meta_track_index]
+        t0[:] = [m for m in t0 if m.is_meta]
+    # Now find first instrument track (skip meta track)
+    instr_track_index = None
+    for idx, t in enumerate(mid.tracks):
+        if idx == meta_track_index:
+            continue
+        has_channel = any((not m.is_meta and hasattr(m, 'channel')) for m in t)
+        if has_channel:
+            instr_track_index = idx
+            break
+    # Default to track 1 if present
+    if instr_track_index is None and len(mid.tracks) > 1:
+        instr_track_index = 1
+    # Ensure a program change at beginning of instrument track
+    if instr_track_index is not None:
+        t = mid.tracks[instr_track_index]
         has_pc = any((not m.is_meta and m.type == 'program_change') for m in t)
         if not has_pc:
             t.insert(0, Message('program_change', program=prog, time=0, channel=ch))
-        # Normalize channel on channel messages
-        for m in t:
-            if not m.is_meta and hasattr(m, 'channel'):
-                m.channel = ch
-            if not m.is_meta and m.type == 'program_change':
-                m.program = prog
-        break
+        # Normalize channel and program for all channel messages in instrument tracks
+        for ti, tr in enumerate(mid.tracks):
+            for m in tr:
+                if not m.is_meta and hasattr(m, 'channel'):
+                    m.channel = ch
+                if not m.is_meta and m.type == 'program_change':
+                    m.program = prog
     mid.save(str(output_path))
+    return output_path
+
+def convert_zero_velocity_to_note_off(midi_path: Path, output_path: Path) -> Path:
+    mid = MidiFile(str(midi_path))
+    for tr in mid.tracks:
+        for i, m in enumerate(tr):
+            if not m.is_meta and m.type == 'note_on' and m.velocity == 0:
+                # Replace with explicit note_off preserving time/note/channel
+                tr[i] = Message('note_off', note=m.note, velocity=0, time=m.time, channel=getattr(m, 'channel', 0))
+    mid.save(str(output_path))
+    return output_path
+
+def deduplicate_notes(midi_path: Path, output_path: Path, start_threshold_ms: int = 12, min_gap_ms: int = 8) -> Path:
+    """Merge duplicate/overlapping notes per pitch after quantization.
+    - start_threshold_ms: merge notes of same pitch whose starts are within this window
+    - min_gap_ms: treat tiny gaps between consecutive notes of same pitch as legato, merge them
+    """
+    pm = pretty_midi.PrettyMIDI(str(midi_path))
+    thr = max(0.0, (start_threshold_ms or 0) / 1000.0)
+    gap = max(0.0, (min_gap_ms or 0) / 1000.0)
+    for inst in pm.instruments:
+        by_pitch = {}
+        for n in inst.notes:
+            by_pitch.setdefault(n.pitch, []).append(n)
+        merged_all = []
+        for pitch, notes in by_pitch.items():
+            notes.sort(key=lambda x: (x.start, x.end))
+            merged = []
+            for n in notes:
+                if not merged:
+                    merged.append(n)
+                    continue
+                last = merged[-1]
+                # Same pitch, near-same start or overlapping/near-tie
+                if abs(n.start - last.start) <= thr or n.start <= (last.end + gap):
+                    if n.end > last.end:
+                        last.end = n.end
+                else:
+                    merged.append(n)
+            merged_all.extend(merged)
+        # Preserve instrument attrs; replace notes with merged set sorted by start
+        inst.notes = sorted(merged_all, key=lambda x: (x.start, x.end))
+    pm.write(str(output_path))
+    return output_path
+
+def limit_polyphony(midi_path: Path, output_path: Path, max_simultaneous: int = 6, same_start_ms: int = 15) -> Path:
+    """Limit number of simultaneously starting notes per pitch group.
+    Heuristic: if more than max_simultaneous notes start within same_start_ms,
+    keep the lowest pitches (favor fundamentals) and drop the rest.
+    """
+    pm = pretty_midi.PrettyMIDI(str(midi_path))
+    eps = max(0.0, (same_start_ms or 0) / 1000.0)
+    for inst in pm.instruments:
+        notes = sorted(inst.notes, key=lambda n: (n.start, n.pitch))
+        kept = []
+        i = 0
+        while i < len(notes):
+            s0 = notes[i].start
+            group = [notes[i]]
+            j = i + 1
+            while j < len(notes) and abs(notes[j].start - s0) <= eps:
+                group.append(notes[j])
+                j += 1
+            if len(group) > max_simultaneous:
+                group = sorted(group, key=lambda n: n.pitch)[:max_simultaneous]
+            kept.extend(group)
+            i = j
+        inst.notes = sorted(kept, key=lambda n: (n.start, n.pitch))
+    pm.write(str(output_path))
     return output_path
 
 def main():

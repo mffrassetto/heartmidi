@@ -165,6 +165,9 @@ async def process_audio(job_id: str):
             normalize_velocity,
             enforce_channel_and_program,
             quantize_timing,
+            convert_zero_velocity_to_note_off,
+            deduplicate_notes,
+            limit_polyphony,
         )
         
         filtered_midi = DATA_DIR / f"{job_id}.mid"
@@ -175,6 +178,9 @@ async def process_audio(job_id: str):
             transpose_to_range(filtered_midi, filtered_midi, min_note=36, max_note=84)
             normalize_velocity(filtered_midi, filtered_midi, velocity=80)
             quantize_timing(filtered_midi, filtered_midi, grid="1/16")
+            deduplicate_notes(filtered_midi, filtered_midi, start_threshold_ms=12, min_gap_ms=8)
+            limit_polyphony(filtered_midi, filtered_midi, max_simultaneous=6, same_start_ms=15)
+            convert_zero_velocity_to_note_off(filtered_midi, filtered_midi)
             enforce_channel_and_program(filtered_midi, filtered_midi, channel=0, program=0)
         else:
             import shutil
