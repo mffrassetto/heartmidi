@@ -229,6 +229,7 @@ async def process_audio(job_id: str):
             deduplicate_notes,
             limit_polyphony,
             shift_pitch,
+            clamp_to_heartopia_scale,
         )
         
         filtered_midi = DATA_DIR / f"{job_id}.mid"
@@ -237,7 +238,8 @@ async def process_audio(job_id: str):
             apply_heartopia_filters(midi_path, filtered_midi)
             clean_short_notes(filtered_midi, filtered_midi, min_duration_ms=50)
             shift_pitch(filtered_midi, filtered_midi, semitones=-12)
-            transpose_to_range(filtered_midi, filtered_midi, min_note=36, max_note=84)
+            transpose_to_range(filtered_midi, filtered_midi, min_note=48, max_note=84)
+            clamp_to_heartopia_scale(filtered_midi, filtered_midi)
             normalize_velocity(filtered_midi, filtered_midi, velocity=80)
             quantize_timing(filtered_midi, filtered_midi, grid="1/16", strength=0.7)
             deduplicate_notes(filtered_midi, filtered_midi, overlap_threshold=0.8)

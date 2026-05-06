@@ -8,6 +8,31 @@ import numpy as np
 MIN_NOTE_DURATION_MS = 50 # Adjusted to 50ms as per project.md
 DEFAULT_VELOCITY = 80
 
+# Heartopia 22-key layout (3 octaves of C Major + C6)
+# Range: C3 (48) to C6 (84)
+# Notes: C, D, E, F, G, A, B
+HEARTOPIA_ALLOWED_NOTES = [
+    48, 50, 52, 53, 55, 57, 59, # Octave 3
+    60, 62, 64, 65, 67, 69, 71, # Octave 4
+    72, 74, 76, 77, 79, 81, 83, # Octave 5
+    84                          # C6
+]
+
+def clamp_to_heartopia_scale(midi_path: Path, output_path: Path) -> Path:
+    """Force all notes to the nearest valid key in the 22-key Heartopia layout."""
+    mid = MidiFile(str(midi_path))
+    allowed = np.array(HEARTOPIA_ALLOWED_NOTES)
+    
+    for track in mid.tracks:
+        for msg in track:
+            if msg.type in ['note_on', 'note_off']:
+                # Find nearest allowed note
+                idx = (np.abs(allowed - msg.note)).argmin()
+                msg.note = int(allowed[idx])
+                
+    mid.save(str(output_path))
+    return output_path
+
 def apply_heartopia_filters(midi_path: Path, output_path: Path) -> Path:
     """Keep only essential messages for game engines."""
     mid = MidiFile(str(midi_path))
