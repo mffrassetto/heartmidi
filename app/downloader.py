@@ -2,7 +2,8 @@ import yt_dlp
 import subprocess
 from pathlib import Path
 import os
-import subprocess
+
+COOKIES_FILE = os.environ.get("COOKIES_FILE", "/data/cookies.txt")
 
 def download_audio(url: str, output_path: Path) -> Path:
     output_path.mkdir(parents=True, exist_ok=True)
@@ -16,6 +17,9 @@ def download_audio(url: str, output_path: Path) -> Path:
             'youtube': {'player_client': ['android']},
         },
     }
+    
+    if Path(COOKIES_FILE).exists():
+        ydl_opts['cookiefile'] = COOKIES_FILE
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])

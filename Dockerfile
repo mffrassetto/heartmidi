@@ -14,7 +14,10 @@ COPY app/ ./app/
 COPY .gitignore .
 COPY README.md .
 
+RUN mkdir -p /data
+
 ENV PORT=3000
+ENV COOKIES_FILE=/data/cookies.txt
 
 EXPOSE 3000
 
