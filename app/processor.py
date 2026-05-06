@@ -41,21 +41,29 @@ def transcribe_audio(audio_path: Path, output_dir: Path) -> Path:
     elif 'note' in result:
         print(f"[PROCESSOR] Generating MIDI from note events...")
         note_array = result['note']
-        print(f"[PROCESSOR] Note array: {type(note_array)}, len={len(note_array) if hasattr(note_array, '__len__') else 'N/A'}")
+        print(f"[PROCESSOR] Note array type: {type(note_array)}")
         
-        if not note_array or len(note_array) == 0:
+        if hasattr(note_array, 'shape'):
+            print(f"[PROCESSOR] Note array shape: {note_array.shape}")
+        
+        notes_list = note_array if isinstance(note_array, list) else note_array.tolist() if hasattr(note_array, 'tolist') else []
+        
+        print(f"[PROCESSOR] Notes list length: {len(notes_list)}")
+        
+        if not notes_list or len(notes_list) == 0:
             raise RuntimeError("Nenhuma nota detectada pelo modelo")
         
         pm = pretty_midi.PrettyMIDI()
         instrument = pretty_midi.Instrument(0)
         
         notes_added = 0
-        for i, note in enumerate(note_array):
-            if len(note) >= 3:
+        for i, note in enumerate(notes_list):
+            print(f"[PROCESSOR] Processing note {i}: {note}, type: {type(note)}")
+            if isinstance(note, (list, tuple)) and len(note) >= 3:
                 start = float(note[0])
                 end = float(note[1])
                 pitch = int(note[2])
-                velocity = note[3] if len(note) > 3 else 100
+                velocity = int(note[3]) if len(note) > 3 else 100
                 
                 if end > start and start >= 0:
                     midi_note = pretty_midi.Note(
