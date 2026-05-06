@@ -30,7 +30,7 @@ class JobManager:
         self.jobs = {}
     
     def create_job(self, source: str, url: Optional[str] = None, file_name: Optional[str] = None, 
-                 instrument: str = "piano", apply_filters: bool = True) -> str:
+                 instrument: str = "piano", apply_filters: bool = True, quantize: str = "1/16") -> str:
         job_id = str(uuid.uuid4())
         self.jobs[job_id] = {
             "status": "processing",
@@ -41,6 +41,7 @@ class JobManager:
             "file_name": file_name,
             "instrument": instrument,
             "apply_filters": apply_filters,
+            "quantize": quantize,
             "output_file": None,
             "error": None,
             "note_count": 0,
@@ -89,7 +90,8 @@ async def convert_audio(
     url: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     instrument: str = Form("piano"),
-    apply_filters: bool = Form(True)
+    apply_filters: bool = Form(True),
+    quantize: str = Form("1/16")
 ):
     try:
         file_name = "uploaded_file"
@@ -101,7 +103,7 @@ async def convert_audio(
             content = await file.read()
             file_name = file.filename or "uploaded_file"
             job_id = job_manager.create_job(source, file_name=file_name, 
-                                        instrument=instrument, apply_filters=apply_filters)
+                                         instrument=instrument, apply_filters=apply_filters, quantize=quantize)
             # Preserve original extension and save as uploaded source
             from pathlib import Path as _Path
             ext = _Path(file_name).suffix or ""
@@ -110,7 +112,7 @@ async def convert_audio(
                 await f.write(content)
         else:
             job_id = job_manager.create_job(source, url=url, file_name=url,
-                                         instrument=instrument, apply_filters=apply_filters)
+                                          instrument=instrument, apply_filters=apply_filters, quantize=quantize)
 
         asyncio.create_task(process_audio(job_id))
         
@@ -223,7 +225,12 @@ async def process_audio(job_id: str):
         filtered_midi = DATA_DIR / f"{job_id}.mid"
         
         if job.get("apply_filters", True):
-            run_post_processing_pipeline(midi_path, filtered_midi, bpm=120.0)
+            run_post_processing_pipeline(
+                midi_path, 
+                filtered_midi, 
+                audio_path=normalized, 
+                quantize_grid=job.get("quantize", "1/16")
+            )
         else:
             import shutil
             shutil.copy(midi_path, filtered_midi)

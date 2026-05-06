@@ -64,8 +64,25 @@ def shift_pitch(midi_path: Path, output_path: Path, semitones: int = -12) -> Pat
     mid.save(str(output_path))
     return output_path
 
-def quantize_timing(midi_path: Path, output_path: Path, grid: str = "1/16", strength: float = 1.0, bpm: float = None) -> Path:
-    """Quantize notes to a grid based on BPM. strength=1.0 means hard quantization."""
+def detect_bpm(audio_path: Path) -> float:
+    """Detect BPM of the audio file using Librosa."""
+    import librosa
+    try:
+        y, sr = librosa.load(str(audio_path), sr=22050)
+        tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+        # tempo is usually returned as a float or an array
+        if isinstance(tempo, (np.ndarray, list)):
+            tempo = tempo[0]
+        return float(tempo)
+    except Exception as e:
+        print(f"[AVISO] Falha ao detectar BPM: {e}")
+        return 120.0
+
+def quantize_timing(midi_path: Path, output_path: Path, grid: str = "1/16", strength: float = 1.0, bpm: float = None, latency_offset_ms: float = -25) -> Path:
+    """
+    Advanced quantization with latency compensation.
+    latency_offset_ms: -25ms to compensate for processing delay.
+    """
     pm = pretty_midi.PrettyMIDI(str(midi_path))
     
     total_notes = sum(len(inst.notes) for inst in pm.instruments)
@@ -73,30 +90,25 @@ def quantize_timing(midi_path: Path, output_path: Path, grid: str = "1/16", stre
         pm.write(str(output_path))
         return output_path
 
-    if bpm:
-        tempo = bpm
-    else:
-        try:
-            tempo = pm.estimate_tempo()
-            if tempo < 40 or tempo > 240:
-                tempo = 120.0
-        except Exception:
-            tempo = 120.0
-        
+    tempo = bpm or 120.0
     grid_map = {"1/1":1, "1/2":2, "1/4":4, "1/8":8, "1/16":16, "1/32":32}
     spb = grid_map.get(grid, 16)
     
-    # Calculate step in seconds
     seconds_per_beat = 60.0 / tempo
     step = seconds_per_beat / (spb / 4.0)
+    offset_s = latency_offset_ms / 1000.0
     
     for inst in pm.instruments:
         for n in inst.notes:
-            # Round start time
+            # Apply latency offset first
+            n.start = max(0, n.start + offset_s)
+            n.end = max(n.start + 0.05, n.end + offset_s)
+            
+            # Snap to grid
             target_start = round(n.start / step) * step
             n.start = n.start + strength * (target_start - n.start)
             
-            # Round end time
+            # Snap end
             target_end = round(n.end / step) * step
             n.end = max(n.start + 0.05, n.end + strength * (target_end - n.end))
             

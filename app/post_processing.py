@@ -13,7 +13,8 @@ from app.formatter import (
     shift_pitch,
     apply_heartopia_filters,
     convert_zero_velocity_to_note_off,
-    enforce_channel_and_program
+    enforce_channel_and_program,
+    detect_bpm
 )
 
 def merge_consecutive_notes(midi_path: Path, output_path: Path, max_gap_s: float = 0.05) -> Path:
@@ -40,34 +41,43 @@ def merge_consecutive_notes(midi_path: Path, output_path: Path, max_gap_s: float
     pm.write(str(output_path))
     return output_path
 
-def run_post_processing_pipeline(midi_path: Path, output_path: Path, bpm: float = 120.0):
+def run_post_processing_pipeline(midi_path: Path, output_path: Path, audio_path: Path = None, quantize_grid: str = "1/16"):
     """
-    Simplified pipeline: prioritize fidelity over 'cleanliness'.
+    Enhanced pipeline with BPM detection and latency compensation.
     """
     temp_path = output_path
     
-    print(f"[POST-PROCESS] Starting light pipeline for {midi_path}")
+    bpm = 120.0
+    if audio_path and audio_path.exists():
+        print(f"[POST-PROCESS] Detecting BPM from {audio_path}...")
+        bpm = detect_bpm(audio_path)
+        print(f"[POST-PROCESS] Detected BPM: {bpm:.2f}")
+
+    print(f"[POST-PROCESS] Starting enhanced pipeline for {midi_path}")
     
-    # 1. Essential cleanup (meta messages etc)
+    # 1. Essential cleanup
     apply_heartopia_filters(midi_path, temp_path)
     
     # 2. Shift pitch (0 offset)
     shift_pitch(temp_path, temp_path, semitones=0)
     
-    # 3. Minimum noise removal only (20ms is safe for almost any musical note)
-    clean_short_notes(temp_path, temp_path, min_duration_ms=20)
+    # 3. Minimum noise removal
+    clean_short_notes(temp_path, temp_path, min_duration_ms=25)
     
-    # 4. Light Quantize (0.4 strength) - just to align slightly without losing feel
-    quantize_timing(temp_path, temp_path, grid="1/16", strength=0.4, bpm=bpm)
+    # 4. Advanced Quantization with Latency Compensation (-25ms)
+    # Using strength 0.8 for a good balance between 'dance' and fidelity
+    if quantize_grid and quantize_grid != "none":
+        print(f"[POST-PROCESS] Quantizing to {quantize_grid} grid at {bpm:.2f} BPM...")
+        quantize_timing(temp_path, temp_path, grid=quantize_grid, strength=0.8, bpm=bpm, latency_offset_ms=-25)
     
-    # 5. Clamp to Heartopia Scale (ESSENTIAL for the game engine)
+    # 5. Clamp to Heartopia Scale
     clamp_to_heartopia_scale(temp_path, temp_path)
     
-    # 6. Basic MIDI normalization
+    # 6. Final normalization
     convert_zero_velocity_to_note_off(temp_path, temp_path)
     enforce_channel_and_program(temp_path, temp_path)
     
-    print(f"[POST-PROCESS] Light pipeline complete: {output_path}")
+    print(f"[POST-PROCESS] Enhanced pipeline complete: {output_path}")
     return output_path
 
 if __name__ == "__main__":
