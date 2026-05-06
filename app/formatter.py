@@ -152,10 +152,25 @@ def normalize_velocity(midi_path: Path, output_path: Path, velocity: int = DEFAU
     mid.save(str(output_path))
     return output_path
 
-def deduplicate_notes(midi_path: Path, output_path: Path, overlap_threshold: float = 0.8) -> Path:
-    """Merge notes only if they significantly overlap and have the same pitch."""
+def deduplicate_notes(midi_path: Path, output_path: Path, overlap_threshold: float = 0.5, snap_window_ms: float = 30.0) -> Path:
+    """
+    Refined Merge logic:
+    1. Snaps notes starting within snap_window_ms to the same start time.
+    2. Merges notes of same pitch that overlap or are extremely close.
+    """
     pm = pretty_midi.PrettyMIDI(str(midi_path))
+    snap_s = snap_window_ms / 1000.0
+    
     for inst in pm.instruments:
+        if not inst.notes: continue
+        
+        # Step 1: Align starts (Chord Snapping)
+        inst.notes.sort(key=lambda x: x.start)
+        for i in range(1, len(inst.notes)):
+            if inst.notes[i].start - inst.notes[i-1].start < snap_s:
+                inst.notes[i].start = inst.notes[i-1].start
+
+        # Step 2: Merge overlapping same-pitch notes
         by_pitch = {}
         for n in inst.notes:
             by_pitch.setdefault(n.pitch, []).append(n)
@@ -163,20 +178,16 @@ def deduplicate_notes(midi_path: Path, output_path: Path, overlap_threshold: flo
         merged_all = []
         for pitch, notes in by_pitch.items():
             notes.sort(key=lambda x: x.start)
+            merged = []
             if not notes: continue
             
-            merged = []
             current = notes[0]
-            
             for i in range(1, len(notes)):
                 next_n = notes[i]
-                # Calculate overlap
-                overlap = min(current.end, next_n.end) - max(current.start, next_n.start)
-                duration = current.end - current.start
-                
-                if duration > 0 and (overlap / duration) > overlap_threshold:
-                    # Merge: keep the longest end
+                # Merge if they overlap or are within 50ms of each other
+                if next_n.start <= current.end + 0.05:
                     current.end = max(current.end, next_n.end)
+                    current.velocity = max(current.velocity, next_n.velocity)
                 else:
                     merged.append(current)
                     current = next_n
@@ -188,26 +199,42 @@ def deduplicate_notes(midi_path: Path, output_path: Path, overlap_threshold: flo
     pm.write(str(output_path))
     return output_path
 
-def limit_polyphony(midi_path: Path, output_path: Path, max_simultaneous: int = 16) -> Path:
-    """Increased polyphony to 16 for richer sound."""
+def limit_polyphony(midi_path: Path, output_path: Path, max_simultaneous: int = 3) -> Path:
+    """
+    Limits simultaneous notes to max_simultaneous.
+    Prioritizes notes with higher velocity (intensity) and higher pitch (melody).
+    """
     pm = pretty_midi.PrettyMIDI(str(midi_path))
     for inst in pm.instruments:
         if len(inst.notes) <= max_simultaneous:
             continue
             
+        # Sort notes by start time
         notes = sorted(inst.notes, key=lambda n: n.start)
-        # Simple window-based polyphony limit
         kept = []
+        
         for n in notes:
-            # Count how many kept notes are active at n.start
+            # Find notes that would overlap with this one
             active = [k for k in kept if k.start <= n.start < k.end]
+            
             if len(active) < max_simultaneous:
                 kept.append(n)
             else:
-                # If full, only replace if this note is "better" (e.g. higher velocity or better pitch range)
-                # For now, just skip to keep it simple and preserve early voices
-                pass
-        inst.notes = kept
+                # If we're at the limit, see if this new note is "better" than the weakest active note
+                # "Better" = significantly higher velocity or much higher pitch
+                active.sort(key=lambda x: (x.velocity, x.pitch))
+                weakest = active[0]
+                
+                if n.velocity > weakest.velocity or (n.pitch > weakest.pitch and n.velocity >= weakest.velocity * 0.8):
+                    # Replace weakest with this one, but truncate weakest's end time
+                    weakest.end = n.start
+                    kept.append(n)
+                else:
+                    # Skip this note to preserve polyphony limit
+                    pass
+        
+        # Remove notes that were truncated to zero length
+        inst.notes = [n for n in kept if n.end > n.start]
         
     pm.write(str(output_path))
     return output_path
