@@ -290,6 +290,25 @@
         .file-drop input {
             display: none;
         }
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--muted);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ef4444;
+        }
+
+        .status-dot.online {
+            background: #22c55e;
+            box-shadow: 0 0 8px var(--primary);
+        }
     </style>
 </head>
 <body>
@@ -297,7 +316,10 @@
         <header>
             <div class="logo">Heartopia MIDI</div>
             <nav class="nav-links">
-                <a href="#">Dashboard</a>
+                <div class="status-indicator">
+                    <div class="status-dot" id="status-dot"></div>
+                    <span id="status-text">Offline</span>
+                </div>
                 <a href="#">History</a>
                 <a href="#">Library</a>
             </nav>
@@ -395,7 +417,7 @@
     </div>
 
     <script>
-        const API_URL = 'http://localhost:8000';
+        const API_URL = ''; // Use relative path for same-origin requests
 
         const tabs = document.querySelectorAll('.tab');
         const urlInput = document.getElementById('url-input');
@@ -411,6 +433,25 @@
 
         let currentJobId = null;
         let pollingInterval = null;
+
+        // Check Health
+        async function checkHealth() {
+            try {
+                const res = await fetch(`${API_URL}/health`);
+                if (res.ok) {
+                    document.getElementById('status-dot').classList.add('online');
+                    document.getElementById('status-text').textContent = 'Online';
+                } else {
+                    throw new Error();
+                }
+            } catch (err) {
+                document.getElementById('status-dot').classList.remove('online');
+                document.getElementById('status-text').textContent = 'Offline';
+            }
+        }
+        
+        checkHealth();
+        setInterval(checkHealth, 10000);
 
         // Tabs
         tabs.forEach(tab => {

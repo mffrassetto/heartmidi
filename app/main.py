@@ -20,10 +20,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DATA_DIR = Path("data")
+BASE_DIR = Path(__file__).parent
+DATA_DIR = BASE_DIR.parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
 class JobManager:
     def __init__(self):
@@ -78,7 +79,7 @@ job_manager = JobManager()
 @app.get("/")
 async def root():
     from fastapi.responses import FileResponse
-    return FileResponse("app/static/index.html")
+    return FileResponse(str(BASE_DIR / "static" / "index.html"))
 
 @app.get("/health")
 async def health():
