@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Tuple
 import numpy as np
 
-MIN_NOTE_DURATION_MS = 30 # Reduced from 50 for more fidelity
+MIN_NOTE_DURATION_MS = 50 # Adjusted to 50ms as per project.md
 DEFAULT_VELOCITY = 80
 
 def apply_heartopia_filters(midi_path: Path, output_path: Path) -> Path:
@@ -63,8 +63,8 @@ def quantize_timing(midi_path: Path, output_path: Path, grid: str = "1/16", stre
     pm.write(str(output_path))
     return output_path
 
-def transpose_to_range(midi_path: Path, output_path: Path, min_note: int = 21, max_note: int = 108) -> Path:
-    """Wider range by default (88 keys piano range)."""
+def transpose_to_range(midi_path: Path, output_path: Path, min_note: int = 36, max_note: int = 84) -> Path:
+    """Range adjusted to C2-C6 (common for game instruments) while preserving octave transpositions."""
     mid = MidiFile(str(midi_path))
     for track in mid.tracks:
         for msg in track:

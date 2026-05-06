@@ -233,8 +233,8 @@ async def process_audio(job_id: str):
         
         if job.get("apply_filters", True):
             apply_heartopia_filters(midi_path, filtered_midi)
-            clean_short_notes(filtered_midi, filtered_midi, min_duration_ms=30)
-            transpose_to_range(filtered_midi, filtered_midi, min_note=21, max_note=108)
+            clean_short_notes(filtered_midi, filtered_midi, min_duration_ms=50)
+            transpose_to_range(filtered_midi, filtered_midi, min_note=36, max_note=84)
             normalize_velocity(filtered_midi, filtered_midi, velocity=80)
             quantize_timing(filtered_midi, filtered_midi, grid="1/16", strength=0.7)
             deduplicate_notes(filtered_midi, filtered_midi, overlap_threshold=0.8)
