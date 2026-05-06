@@ -2,10 +2,10 @@ import numpy as np
 from pathlib import Path
 import basic_pitch.inference as inference_module
 import basic_pitch
-import basic_pitch.events
 import pretty_midi
 import os
 import traceback
+import librosa
 
 def transcribe_audio(audio_path: Path, output_dir: Path) -> Path:
     if not audio_path.exists():
@@ -41,20 +41,28 @@ def transcribe_audio(audio_path: Path, output_dir: Path) -> Path:
     elif 'note' in result:
         print(f"[PROCESSOR] Generating MIDI from note events...")
         note_array = result['note']
-        onset_env = result.get('onset', None)
         
-        midi_events = basic_pitch.events.note_events_to_midi_events(
-            [note_array],
-            [onset_env] if onset_env is not None else [None]
-        )
+        pm = pretty_midi.PrettyMIDI()
+        instrument = pretty_midi.Instrument(0)
         
-        import librosa
         sr = 22050
-        basic_pitch.events.write_midi(
-            str(output_midi),
-            midi_events,
-            sr
-        )
+        for note in note_array:
+            if len(note) >= 3:
+                start = float(note[0])
+                end = float(note[1])
+                pitch = int(note[2])
+                velocity = note[3] if len(note) > 3 else 100
+                
+                midi_note = pretty_midi.Note(
+                    velocity=velocity,
+                    pitch=pitch,
+                    start=start,
+                    end=end
+                )
+                instrument.notes.append(midi_note)
+        
+        pm.instruments.append(instrument)
+        pm.write(str(output_midi))
     else:
         raise RuntimeError(f"Falha ao gerar arquivo MIDI: nenhuma chave compatível. chaves: {result.keys()}")
     
