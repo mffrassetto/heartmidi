@@ -44,17 +44,33 @@ def transcribe_audio(
     print(f"[PROCESSOR] Input: {audio_path}")
 
     try:
+        import torch
         import librosa
         from piano_transcription_inference import PianoTranscription, sample_rate
+
+        # ── Monkey-patch fix ──────────────────────────────────────────────────
+        # piano_transcription_inference 0.0.6 passes map_location='auto' to
+        # torch.load(), which PyTorch cannot resolve ("don't know how to restore
+        # data location of UntypedStorage tagged with auto").
+        # We intercept that call and force 'cpu' whenever 'auto' is requested.
+        _original_torch_load = torch.load
+
+        def _patched_torch_load(f, map_location=None, *args, **kwargs):
+            if map_location == 'auto':
+                map_location = 'cpu'
+            return _original_torch_load(f, map_location=map_location, *args, **kwargs)
+
+        torch.load = _patched_torch_load
+        # ──────────────────────────────────────────────────────────────────────
 
         # Load and resample audio to the model's expected 16 kHz using librosa,
         # which uses libsndfile (already present in Docker) — avoids audioread issues.
         print(f"[PROCESSOR] Loading audio at {sample_rate} Hz via librosa...")
         audio, _ = librosa.load(str(audio_path), sr=sample_rate, mono=True)
 
-        # Instantiate transcriber (downloads checkpoint on first run, ~100 MB)
-        # device='auto' selects CUDA if available, otherwise CPU
-        transcriptor = PianoTranscription(device='auto', checkpoint_path=None)
+        # Instantiate transcriber — checkpoint is downloaded on first run (~165 MB).
+        # device='cpu' is explicit here; the monkey-patch above also guarantees it.
+        transcriptor = PianoTranscription(device='cpu', checkpoint_path=None)
 
         output_midi = output_dir / "output.mid"
 
