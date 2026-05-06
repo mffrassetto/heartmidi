@@ -75,7 +75,8 @@ def transcribe_audio(audio_path: Path, output_dir: Path) -> Path:
                 pitch_onsets = onset_arr[pitch_idx]
                 if pitch_onsets.ndim > 1:
                     pitch_onsets = pitch_onsets.flatten()
-                above_threshold = np.where(pitch_onsets > min_onset_value)[0]
+                
+                above_threshold = np.where(np.asarray(pitch_onsets) > min_onset_value)[0]
                 
                 if len(above_threshold) == 0:
                     continue
@@ -124,7 +125,7 @@ def transcribe_audio(audio_path: Path, output_dir: Path) -> Path:
                 pitch = int(note[2])
                 velocity = int(note[3]) if len(note) > 3 else 100
                 
-                if end > start and start >= 0:
+                if bool(end > start) and bool(start >= 0):
                     midi_note = pretty_midi.Note(
                         velocity=velocity,
                         pitch=pitch,
