@@ -43,8 +43,14 @@ def transcribe_audio(audio_path: Path, output_dir: Path) -> Path:
         
         import numpy as np
         
-        onset_data = result.get('onset') or result.get('note')
-        contour_data = result.get('contour') or result.get('note')
+        # Avoid boolean evaluation of numpy arrays; check None explicitly
+        onset_data = result.get('onset')
+        if onset_data is None:
+            onset_data = result.get('note')
+        
+        contour_data = result.get('contour')
+        if contour_data is None:
+            contour_data = result.get('note')
         
         if hasattr(onset_data, 'shape'):
             print(f"[PROCESSOR] Data shape: {onset_data.shape}")
