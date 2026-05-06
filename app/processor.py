@@ -38,17 +38,73 @@ def transcribe_audio(audio_path: Path, output_dir: Path) -> Path:
     if 'midi' in result:
         with open(output_midi, 'wb') as f:
             f.write(result['midi'])
-    elif 'note' in result:
-        print(f"[PROCESSOR] Generating MIDI from note events...")
-        note_array = result['note']
-        print(f"[PROCESSOR] Note array type: {type(note_array)}")
+    elif 'note' in result or 'onset' in result or 'contour' in result:
+        print(f"[PROCESSOR] Generating MIDI from model output...")
         
-        if hasattr(note_array, 'shape'):
-            print(f"[PROCESSOR] Note array shape: {note_array.shape}")
+        import numpy as np
         
-        notes_list = note_array if isinstance(note_array, list) else note_array.tolist() if hasattr(note_array, 'tolist') else []
+        onset_data = result.get('onset') or result.get('note')
+        contour_data = result.get('contour') or result.get('note')
         
-        print(f"[PROCESSOR] Notes list length: {len(notes_list)}")
+        if hasattr(onset_data, 'shape'):
+            print(f"[PROCESSOR] Data shape: {onset_data.shape}")
+        
+        notes_list = []
+        
+        if onset_data is not None:
+            onset_arr = np.array(onset_data)
+            if len(onset_arr.shape) == 2 and onset_arr.shape[1] <= 128:
+                onset_arr = onset_arr.T
+            elif len(onset_arr.shape) > 2:
+                onset_arr = onset_arr.reshape(onset_arr.shape[0], -1)
+                if onset_arr.shape[1] > 128:
+                    onset_arr = onset_arr[:, :128]
+            
+            print(f"[PROCESSOR] Onset array shape after processing: {onset_arr.shape}")
+            print(f"[PROCESSOR] Onset min: {onset_arr.min():.4f}, max: {onset_arr.max():.4f}")
+            
+            fps = 22050 / 512
+            min_onset_value = 0.3
+            min_duration_frames = int(0.05 * fps)
+            
+            onset_thresholded = (onset_arr > min_onset_value).astype(np.float32)
+            
+            print(f"[PROCESSOR] Frames above threshold: {onset_thresholded.sum()}")
+            
+            for pitch_idx in range(min(onset_arr.shape[0], 128)):
+                pitch_onsets = onset_arr[pitch_idx]
+                above_threshold = np.where(pitch_onsets > min_onset_value)[0]
+                
+                if len(above_threshold) == 0:
+                    continue
+                
+                onsets_grouped = []
+                start = above_threshold[0]
+                
+                for i in range(1, len(above_threshold)):
+                    if above_threshold[i] - above_threshold[i-1] > 10:
+                        onsets_grouped.append(start)
+                        start = above_threshold[i]
+                onsets_grouped.append(start)
+                
+                for t_start in onsets_grouped:
+                    t_end = t_start + min_duration_frames
+                    if t_end < len(pitch_onsets):
+                        t_end = int(np.argmax(pitch_onsets[t_start:]) + t_start)
+                    else:
+                        t_end = len(pitch_onsets) - 1
+                    
+                    notes_list.append([
+                        t_start / fps,
+                        t_end / fps,
+                        pitch_idx + 21,
+                        80
+                    ])
+        
+        print(f"[PROCESSOR] Created {len(notes_list)} notes")
+        
+        if not notes_list or len(notes_list) == 0:
+            raise RuntimeError("Nenhuma nota detectada pelo modelo")
         
         if not notes_list or len(notes_list) == 0:
             raise RuntimeError("Nenhuma nota detectada pelo modelo")
