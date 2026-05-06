@@ -28,8 +28,16 @@ def apply_heartopia_filters(midi_path: Path, output_path: Path) -> Path:
 def quantize_timing(midi_path: Path, output_path: Path, grid: str = "1/16") -> Path:
     # Quantize by rounding note start/end times to nearest grid step using PrettyMIDI
     pm = pretty_midi.PrettyMIDI(str(midi_path))
+    total_notes = sum(len(inst.notes) for inst in pm.instruments)
+    if total_notes < 2:
+        # Not enough notes to estimate a tempo robustly; skip quantization
+        pm.write(str(output_path))
+        return output_path
     # Estimate a single representative tempo
-    tempi = pm.estimate_tempo()
+    try:
+        tempi = pm.estimate_tempo()
+    except Exception:
+        tempi = 120.0
     # Steps per beat
     grid_map = {"1/1":1, "1/2":2, "1/4":4, "1/8":8, "1/16":16, "1/32":32}
     spb = grid_map.get(grid, 16)
