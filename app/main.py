@@ -218,34 +218,12 @@ async def process_audio(job_id: str):
         
         job_manager.update_job(job_id, progress=70, stage="Aplicando filtros...")
         
-        from app.formatter import (
-            clean_short_notes,
-            transpose_to_range,
-            apply_heartopia_filters,
-            normalize_velocity,
-            enforce_channel_and_program,
-            quantize_timing,
-            convert_zero_velocity_to_note_off,
-            deduplicate_notes,
-            limit_polyphony,
-            shift_pitch,
-            clamp_to_heartopia_scale,
-        )
+        from app.post_processing import run_post_processing_pipeline
         
         filtered_midi = DATA_DIR / f"{job_id}.mid"
         
         if job.get("apply_filters", True):
-            apply_heartopia_filters(midi_path, filtered_midi)
-            clean_short_notes(filtered_midi, filtered_midi, min_duration_ms=50)
-            shift_pitch(filtered_midi, filtered_midi, semitones=0)
-            transpose_to_range(filtered_midi, filtered_midi, min_note=60, max_note=96)
-            clamp_to_heartopia_scale(filtered_midi, filtered_midi)
-            normalize_velocity(filtered_midi, filtered_midi, velocity=80)
-            quantize_timing(filtered_midi, filtered_midi, grid="1/16", strength=1.0)
-            deduplicate_notes(filtered_midi, filtered_midi, overlap_threshold=0.8)
-            limit_polyphony(filtered_midi, filtered_midi, max_simultaneous=16)
-            convert_zero_velocity_to_note_off(filtered_midi, filtered_midi)
-            enforce_channel_and_program(filtered_midi, filtered_midi, channel=0, program=0)
+            run_post_processing_pipeline(midi_path, filtered_midi, bpm=120.0)
         else:
             import shutil
             shutil.copy(midi_path, filtered_midi)
