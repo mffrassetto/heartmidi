@@ -208,7 +208,12 @@ async def process_audio(job_id: str):
         from app.processor import transcribe_audio
         output_dir = DATA_DIR / f"{job_id}"
         output_dir.mkdir(exist_ok=True)
-        midi_path = transcribe_audio(normalized, output_dir)
+        midi_path = transcribe_audio(
+            normalized, 
+            output_dir,
+            onset_threshold=0.5,
+            frame_threshold=0.3
+        )
         
         job_manager.update_job(job_id, progress=70, stage="Aplicando filtros...")
         
@@ -228,12 +233,12 @@ async def process_audio(job_id: str):
         
         if job.get("apply_filters", True):
             apply_heartopia_filters(midi_path, filtered_midi)
-            clean_short_notes(filtered_midi, filtered_midi, min_duration_ms=50)
-            transpose_to_range(filtered_midi, filtered_midi, min_note=36, max_note=84)
+            clean_short_notes(filtered_midi, filtered_midi, min_duration_ms=30)
+            transpose_to_range(filtered_midi, filtered_midi, min_note=21, max_note=108)
             normalize_velocity(filtered_midi, filtered_midi, velocity=80)
-            quantize_timing(filtered_midi, filtered_midi, grid="1/16")
-            deduplicate_notes(filtered_midi, filtered_midi, start_threshold_ms=5, min_gap_ms=3)
-            limit_polyphony(filtered_midi, filtered_midi, max_simultaneous=12, same_start_ms=10)
+            quantize_timing(filtered_midi, filtered_midi, grid="1/16", strength=0.7)
+            deduplicate_notes(filtered_midi, filtered_midi, overlap_threshold=0.8)
+            limit_polyphony(filtered_midi, filtered_midi, max_simultaneous=16)
             convert_zero_velocity_to_note_off(filtered_midi, filtered_midi)
             enforce_channel_and_program(filtered_midi, filtered_midi, channel=0, program=0)
         else:
