@@ -220,17 +220,14 @@ async def process_audio(job_id: str):
         
         job_manager.update_job(job_id, progress=70, stage="Aplicando filtros...")
         
-        from app.post_processing import run_post_processing_pipeline
+        from app.formatter import clamp_to_heartopia_scale
         
         filtered_midi = DATA_DIR / f"{job_id}.mid"
         
         if job.get("apply_filters", True):
-            run_post_processing_pipeline(
-                midi_path, 
-                filtered_midi, 
-                audio_path=normalized, 
-                quantize_grid=job.get("quantize", "1/16")
-            )
+            # Only essential scaling for game engine compatibility
+            print("[PROCESS] Applying essential game-engine scaling only.")
+            clamp_to_heartopia_scale(midi_path, filtered_midi)
         else:
             import shutil
             shutil.copy(midi_path, filtered_midi)

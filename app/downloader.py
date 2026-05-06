@@ -37,16 +37,17 @@ def download_audio(url: str, output_path: Path) -> Path:
 
 def normalize_audio(input_path: Path, output_path: Path, sample_rate: int = 22050, channels: int = 1):
     """
-    Enhanced pre-processing: 
-    - Loudness normalization (loudnorm)
-    - Frequency filtering (50Hz - 10kHz) to isolate the instrument
-    - Resampling to 22050Hz (Optimal for Basic Pitch)
+    Advanced Pre-processing:
+    - EBU R128 Loudness Normalization
+    - FFT Denoiser (afftdn) to remove background noise
+    - Brickwall filters (100Hz - 8kHz) to isolate the piano range
+    - Resampling to 22050Hz Mono
     """
-    # Using loudnorm for consistent signal level
     filters = [
         "loudnorm",
-        "highpass=f=50",
-        "lowpass=f=10000"
+        "afftdn",      # Advanced Noise Reduction
+        "highpass=f=100", 
+        "lowpass=f=8000"
     ]
     
     cmd = [
@@ -57,17 +58,11 @@ def normalize_audio(input_path: Path, output_path: Path, sample_rate: int = 2205
         str(output_path)
     ]
     
-    print(f"[PRE-PROCESS] Running enhanced normalization for {input_path}")
+    print(f"[PRE-PROCESS] Running advanced audio isolation for {input_path}")
     result = subprocess.run(cmd, capture_output=True)
     if result.returncode != 0:
-        print(f"[AVISO] FFmpeg falhou no pre-processamento avançado. Usando fallback simples.")
-        # Fallback simple
-        cmd_simple = [
-            'ffmpeg', '-y', '-i', str(input_path),
-            '-ar', str(sample_rate),
-            '-ac', str(channels),
-            str(output_path)
-        ]
+        print(f"[AVISO] Pré-processamento avançado falhou. Usando fallback.")
+        cmd_simple = ['ffmpeg', '-y', '-i', str(input_path), '-ar', str(sample_rate), '-ac', str(channels), str(output_path)]
         subprocess.run(cmd_simple, check=True)
     
     return output_path
