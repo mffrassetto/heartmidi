@@ -212,7 +212,8 @@ async def process_audio(job_id: str):
             normalized, 
             output_dir,
             onset_threshold=0.5,
-            frame_threshold=0.3
+            frame_threshold=0.3,
+            use_dynamic_threshold=True
         )
         
         job_manager.update_job(job_id, progress=70, stage="Aplicando filtros...")
