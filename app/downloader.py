@@ -36,15 +36,38 @@ def download_audio(url: str, output_path: Path) -> Path:
     return audio_file
 
 def normalize_audio(input_path: Path, output_path: Path, sample_rate: int = 22050, channels: int = 1):
-    cmd = [
-        'ffmpeg', '-y', '-i', str(input_path),
-        '-ar', str(sample_rate),
-        '-ac', str(channels),
-        '-y', str(output_path)
+    """
+    Enhanced pre-processing: 
+    - Loudness normalization (loudnorm)
+    - Frequency filtering (50Hz - 10kHz) to isolate the instrument
+    - Resampling to 22050Hz (Optimal for Basic Pitch)
+    """
+    # Using loudnorm for consistent signal level
+    filters = [
+        "loudnorm",
+        "highpass=f=50",
+        "lowpass=f=10000"
     ]
     
-    result = subprocess.run(cmd, check=True, capture_output=True)
+    cmd = [
+        'ffmpeg', '-y', '-i', str(input_path),
+        '-af', ",".join(filters),
+        '-ar', str(sample_rate),
+        '-ac', str(channels),
+        str(output_path)
+    ]
+    
+    print(f"[PRE-PROCESS] Running enhanced normalization for {input_path}")
+    result = subprocess.run(cmd, capture_output=True)
     if result.returncode != 0:
-        raise RuntimeError(f"FFmpeg error: {result.stderr.decode()}")
+        print(f"[AVISO] FFmpeg falhou no pre-processamento avançado. Usando fallback simples.")
+        # Fallback simple
+        cmd_simple = [
+            'ffmpeg', '-y', '-i', str(input_path),
+            '-ar', str(sample_rate),
+            '-ac', str(channels),
+            str(output_path)
+        ]
+        subprocess.run(cmd_simple, check=True)
     
     return output_path

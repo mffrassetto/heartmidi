@@ -72,9 +72,10 @@ def merge_consecutive_notes(midi_path: Path, output_path: Path, max_gap_s: float
     pm.write(str(output_path))
     return output_path
 
-def run_post_processing_pipeline(midi_path: Path, output_path: Path, audio_path: Path = None, quantize_grid: str = "1/16", monophonic: bool = True):
+def run_post_processing_pipeline(midi_path: Path, output_path: Path, audio_path: Path = None, quantize_grid: str = "1/16", monophonic: bool = False):
     """
-    Universal pipeline: Auto-detects BPM and applies smart monophonic filtering.
+    Universal pipeline: Auto-detects BPM and applies smart quantization.
+    Monophonic is now DISABLED by default to preserve richness.
     """
     temp_path = output_path
     
@@ -93,23 +94,20 @@ def run_post_processing_pipeline(midi_path: Path, output_path: Path, audio_path:
     # 2. Shift pitch (0 offset)
     shift_pitch(temp_path, temp_path, semitones=0)
     
-    # 3. Smart Monophonic Filter (Less aggressive than before)
+    # 3. Smart Monophonic Filter (Now Optional)
     if monophonic:
         print("[POST-PROCESS] Applying Smart Monophonic filter...")
         limit_to_monophonic(temp_path, temp_path, tolerance_s=0.1)
     
-    # 4. Minimum noise removal
-    clean_short_notes(temp_path, temp_path, min_duration_ms=30)
-    
-    # 5. Advanced Quantization with Latency Compensation (-25ms)
+    # 4. Light Quantize (0.7 strength) with Latency Compensation (-25ms)
     if quantize_grid and quantize_grid != "none":
         print(f"[POST-PROCESS] Quantizing to {quantize_grid} grid at {bpm:.2f} BPM...")
-        quantize_timing(temp_path, temp_path, grid=quantize_grid, strength=0.8, bpm=bpm, latency_offset_ms=-25)
+        quantize_timing(temp_path, temp_path, grid=quantize_grid, strength=0.7, bpm=bpm, latency_offset_ms=-25)
     
-    # 6. Clamp to Heartopia Scale (22 keys, C4-C7)
+    # 5. Clamp to Heartopia Scale (ESSENTIAL)
     clamp_to_heartopia_scale(temp_path, temp_path)
     
-    # 7. Final normalization
+    # 6. Final normalization
     convert_zero_velocity_to_note_off(temp_path, temp_path)
     enforce_channel_and_program(temp_path, temp_path)
     
