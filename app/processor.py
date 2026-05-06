@@ -60,8 +60,10 @@ def transcribe_audio(audio_path: Path, output_dir: Path) -> Path:
                 if onset_arr.shape[1] > 128:
                     onset_arr = onset_arr[:, :128]
             
-            print(f"[PROCESSOR] Onset array shape after processing: {onset_arr.shape}")
-            print(f"[PROCESSOR] Onset min: {onset_arr.min():.4f}, max: {onset_arr.max():.4f}")
+            onset_arr = np.asarray(onset_arr, dtype=np.float32)
+            
+            print(f"[PROCESSOR] Onset array shape: {onset_arr.shape}")
+            print(f"[PROCESSOR] Onset min: {float(onset_arr.min()):.4f}, max: {float(onset_arr.max()):.4f}")
             
             fps = 22050 / 512
             min_onset_value = 0.3
