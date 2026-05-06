@@ -211,7 +211,7 @@ async def process_audio(job_id: str):
         midi_path = transcribe_audio(
             normalized, 
             output_dir,
-            onset_threshold=0.5,
+            onset_threshold=0.4, # More sensitive
             frame_threshold=0.3,
             use_dynamic_threshold=True
         )

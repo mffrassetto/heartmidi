@@ -42,41 +42,32 @@ def merge_consecutive_notes(midi_path: Path, output_path: Path, max_gap_s: float
 
 def run_post_processing_pipeline(midi_path: Path, output_path: Path, bpm: float = 120.0):
     """
-    Main entry point for the post-processing logic as requested.
-    - Removes notes < 60ms
-    - Merges consecutive notes (jitter)
-    - Quantizes to BPM grid
-    - Clamps to Heartopia 22-key scale
+    Simplified pipeline: prioritize fidelity over 'cleanliness'.
     """
     temp_path = output_path
     
-    print(f"[POST-PROCESS] Starting pipeline for {midi_path}")
+    print(f"[POST-PROCESS] Starting light pipeline for {midi_path}")
     
-    # 1. Essential cleanup first
+    # 1. Essential cleanup (meta messages etc)
     apply_heartopia_filters(midi_path, temp_path)
     
-    # 2. Shift pitch (0 offset as per last user request)
+    # 2. Shift pitch (0 offset)
     shift_pitch(temp_path, temp_path, semitones=0)
     
-    # 3. Merge jitter (consecutive notes) - reduced to 20ms to avoid losing fast repeats
-    merge_consecutive_notes(temp_path, temp_path, max_gap_s=0.02)
+    # 3. Minimum noise removal only (20ms is safe for almost any musical note)
+    clean_short_notes(temp_path, temp_path, min_duration_ms=20)
     
-    # 4. Remove short notes (< 40ms) - lowered from 60ms to preserve fast melodies
-    clean_short_notes(temp_path, temp_path, min_duration_ms=40)
+    # 4. Light Quantize (0.4 strength) - just to align slightly without losing feel
+    quantize_timing(temp_path, temp_path, grid="1/16", strength=0.4, bpm=bpm)
     
-    # 5. Quantize to BPM grid (Subtle Quantize) - reduced strength to 0.8 to avoid merging notes
-    quantize_timing(temp_path, temp_path, grid="1/16", strength=0.8, bpm=bpm)
-    
-    # 6. Clamp to Heartopia Scale (22 keys, C4-C7)
+    # 5. Clamp to Heartopia Scale (ESSENTIAL for the game engine)
     clamp_to_heartopia_scale(temp_path, temp_path)
     
-    # 7. Final Polish
-    deduplicate_notes(temp_path, temp_path, overlap_threshold=0.8)
-    limit_polyphony(temp_path, temp_path, max_simultaneous=16)
+    # 6. Basic MIDI normalization
     convert_zero_velocity_to_note_off(temp_path, temp_path)
     enforce_channel_and_program(temp_path, temp_path)
     
-    print(f"[POST-PROCESS] Pipeline complete: {output_path}")
+    print(f"[POST-PROCESS] Light pipeline complete: {output_path}")
     return output_path
 
 if __name__ == "__main__":
