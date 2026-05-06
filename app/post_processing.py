@@ -58,14 +58,14 @@ def run_post_processing_pipeline(midi_path: Path, output_path: Path, bpm: float 
     # 2. Shift pitch (0 offset as per last user request)
     shift_pitch(temp_path, temp_path, semitones=0)
     
-    # 3. Merge jitter (consecutive notes)
-    merge_consecutive_notes(temp_path, temp_path, max_gap_s=0.05)
+    # 3. Merge jitter (consecutive notes) - reduced to 20ms to avoid losing fast repeats
+    merge_consecutive_notes(temp_path, temp_path, max_gap_s=0.02)
     
-    # 4. Remove short notes (< 60ms)
-    clean_short_notes(temp_path, temp_path, min_duration_ms=60)
+    # 4. Remove short notes (< 40ms) - lowered from 60ms to preserve fast melodies
+    clean_short_notes(temp_path, temp_path, min_duration_ms=40)
     
-    # 5. Quantize to BPM grid (Hard Quantize)
-    quantize_timing(temp_path, temp_path, grid="1/16", strength=1.0, bpm=bpm)
+    # 5. Quantize to BPM grid (Subtle Quantize) - reduced strength to 0.8 to avoid merging notes
+    quantize_timing(temp_path, temp_path, grid="1/16", strength=0.8, bpm=bpm)
     
     # 6. Clamp to Heartopia Scale (22 keys, C4-C7)
     clamp_to_heartopia_scale(temp_path, temp_path)
