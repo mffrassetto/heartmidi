@@ -4,6 +4,7 @@ import basic_pitch.inference as inference_module
 import basic_pitch
 import pretty_midi
 import os
+import traceback
 
 def transcribe_audio(audio_path: Path, output_dir: Path) -> Path:
     if not audio_path.exists():
@@ -23,11 +24,19 @@ def transcribe_audio(audio_path: Path, output_dir: Path) -> Path:
         )
     except Exception as e:
         print(f"[PROCESSOR] Inference error: {e}")
+        print(f"[PROCESSOR] Traceback: {traceback.format_exc()}")
         raise
     
-    output_midi = output_dir / "output.mid"
     print(f"[PROCESSOR] Result keys: {result.keys() if result else 'None'}")
     
+    if not result:
+        raise RuntimeError("Falha ao gerar arquivo MIDI: resultado vazio")
+    
+    if 'midi' not in result:
+        print(f"[PROCESSOR] Available keys: {result.keys()}")
+        raise RuntimeError(f"Falha ao gerar arquivo MIDI: chave 'midi' não encontrada. chaves: {result.keys()}")
+    
+    output_midi = output_dir / "output.mid"
     if result and 'midi' in result:
         with open(output_midi, 'wb') as f:
             f.write(result['midi'])
