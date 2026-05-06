@@ -45,7 +45,6 @@ def transcribe_audio(audio_path: Path, output_dir: Path) -> Path:
         pm = pretty_midi.PrettyMIDI()
         instrument = pretty_midi.Instrument(0)
         
-        sr = 22050
         for note in note_array:
             if len(note) >= 3:
                 start = float(note[0])
@@ -53,13 +52,14 @@ def transcribe_audio(audio_path: Path, output_dir: Path) -> Path:
                 pitch = int(note[2])
                 velocity = note[3] if len(note) > 3 else 100
                 
-                midi_note = pretty_midi.Note(
-                    velocity=velocity,
-                    pitch=pitch,
-                    start=start,
-                    end=end
-                )
-                instrument.notes.append(midi_note)
+                if end > start and start >= 0:
+                    midi_note = pretty_midi.Note(
+                        velocity=velocity,
+                        pitch=pitch,
+                        start=start,
+                        end=end
+                    )
+                    instrument.notes.append(midi_note)
         
         pm.instruments.append(instrument)
         pm.write(str(output_midi))
