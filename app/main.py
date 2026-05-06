@@ -3,6 +3,7 @@ import uuid
 import asyncio
 from pathlib import Path
 from typing import Optional
+import mido
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Depends
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -53,6 +54,23 @@ class JobManager:
     
     def get_job(self, job_id: str):
         return self.jobs.get(job_id)
+    
+    def get_note_count(self, midi_path: Path) -> int:
+        try:
+            mid = mido.MidiFile(str(midi_path))
+            return sum(1 for track in mid.tracks for msg in track if msg.type == 'note_on' and msg.velocity > 0)
+        except:
+            return 0
+    
+    def get_duration(self, midi_path: Path) -> str:
+        try:
+            mid = mido.MidiFile(str(midi_path))
+            seconds = mid.length
+            mins = int(seconds // 60)
+            secs = int(seconds % 60)
+            return f"{mins:02d}:{secs:02d}"
+        except:
+            return "00:00"
 
 job_manager = JobManager()
 
@@ -153,8 +171,9 @@ async def process_audio(job_id: str):
             shutil.copy(midi_path, filtered_midi)
         
         job_manager.update_job(job_id, progress=100, stage="Concluído!", 
-                     status="completed", output_file=str(filtered_midi),
-                     note_count=1048, duration="02:14")
+                     status="completed", output_file=str(filtered_midi.resolve()),
+                     note_count=job_manager.get_note_count(filtered_midi), 
+                     duration=job_manager.get_duration(filtered_midi))
         
     except Exception as e:
         import traceback
@@ -180,11 +199,15 @@ async def download_midi(job_id: str):
         raise HTTPException(status_code=400, detail="Processamento não concluído")
     
     output_file = job.get("output_file")
-    if not output_file or not Path(output_file).exists():
+    if not output_file:
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado")
+    
+    file_path = Path(output_file)
+    if not file_path.exists():
         raise HTTPException(status_code=404, detail="Arquivo não encontrado")
     
     return FileResponse(
-        path=output_file,
+        path=str(file_path),
         media_type="audio/midi",
         filename=f"heartopia_{job_id}.mid"
     )
