@@ -131,7 +131,7 @@ def convert_zero_velocity_to_note_off(midi_path: Path, output_path: Path) -> Pat
     mid.save(str(output_path))
     return output_path
 
-def deduplicate_notes(midi_path: Path, output_path: Path, start_threshold_ms: int = 12, min_gap_ms: int = 8) -> Path:
+def deduplicate_notes(midi_path: Path, output_path: Path, start_threshold_ms: int = 5, min_gap_ms: int = 3) -> Path:
     """Merge duplicate/overlapping notes per pitch after quantization.
     - start_threshold_ms: merge notes of same pitch whose starts are within this window
     - min_gap_ms: treat tiny gaps between consecutive notes of same pitch as legato, merge them
@@ -152,8 +152,14 @@ def deduplicate_notes(midi_path: Path, output_path: Path, start_threshold_ms: in
                     merged.append(n)
                     continue
                 last = merged[-1]
-                # Same pitch, near-same start or overlapping/near-tie
-                if abs(n.start - last.start) <= thr or n.start <= (last.end + gap):
+                # Same pitch: merge only if near-same start OR significant overlap OR tiny gap (legato)
+                near_same_start = abs(n.start - last.start) <= thr
+                overlap = min(last.end, n.end) - max(last.start, n.start)
+                last_dur = max(last.end - last.start, 1e-6)
+                overlap_ratio = overlap / last_dur if overlap > 0 else 0.0
+                tiny_gap_legato = 0.0 <= (n.start - last.end) <= gap
+
+                if near_same_start or overlap_ratio >= 0.5 or tiny_gap_legato:
                     if n.end > last.end:
                         last.end = n.end
                 else:
@@ -164,7 +170,7 @@ def deduplicate_notes(midi_path: Path, output_path: Path, start_threshold_ms: in
     pm.write(str(output_path))
     return output_path
 
-def limit_polyphony(midi_path: Path, output_path: Path, max_simultaneous: int = 6, same_start_ms: int = 15) -> Path:
+def limit_polyphony(midi_path: Path, output_path: Path, max_simultaneous: int = 12, same_start_ms: int = 10) -> Path:
     """Limit number of simultaneously starting notes per pitch group.
     Heuristic: if more than max_simultaneous notes start within same_start_ms,
     keep the lowest pitches (favor fundamentals) and drop the rest.
@@ -183,7 +189,20 @@ def limit_polyphony(midi_path: Path, output_path: Path, max_simultaneous: int = 
                 group.append(notes[j])
                 j += 1
             if len(group) > max_simultaneous:
-                group = sorted(group, key=lambda n: n.pitch)[:max_simultaneous]
+                # Keep extremes: lowest and highest pitches to preserve bass+melody
+                group_sorted = sorted(group, key=lambda n: n.pitch)
+                k_low = max_simultaneous // 2
+                k_high = max_simultaneous - k_low
+                keep = group_sorted[:k_low] + (group_sorted[-k_high:] if k_high > 0 else [])
+                # Ensure unique references (in case of overlap between slices)
+                seen = set()
+                kept_group = []
+                for n in keep:
+                    key = (n.start, n.end, n.pitch)
+                    if key not in seen:
+                        kept_group.append(n)
+                        seen.add(key)
+                group = kept_group
             kept.extend(group)
             i = j
         inst.notes = sorted(kept, key=lambda n: (n.start, n.pitch))

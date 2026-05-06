@@ -87,7 +87,7 @@ async def health():
 async def convert_audio(
     source: str = Form(...),
     url: Optional[str] = Form(None),
-    file: Optional[UploadFile] = Form(None),
+    file: Optional[UploadFile] = File(None),
     instrument: str = Form("piano"),
     apply_filters: bool = Form(True)
 ):
@@ -102,9 +102,11 @@ async def convert_audio(
             file_name = file.filename or "uploaded_file"
             job_id = job_manager.create_job(source, file_name=file_name, 
                                         instrument=instrument, apply_filters=apply_filters)
-            
-            file_path = DATA_DIR / f"{job_id}.wav"
-            async with aiofiles.open(file_path, 'wb') as f:
+            # Preserve original extension and save as uploaded source
+            from pathlib import Path as _Path
+            ext = _Path(file_name).suffix or ""
+            uploaded_path = DATA_DIR / f"{job_id}_uploaded{ext}"
+            async with aiofiles.open(uploaded_path, 'wb') as f:
                 await f.write(content)
         else:
             job_id = job_manager.create_job(source, url=url, file_name=url,
@@ -182,13 +184,26 @@ async def process_audio(job_id: str):
                 print(f"[AVISO] FFmpeg não disponível, usando arquivo original: {e}")
                 import shutil
                 shutil.copy(downloaded, normalized)
+        elif job["source"] == "file" and job.get("file_name"):
+            # Normalize uploaded file to consistent WAV
+            from app.downloader import normalize_audio
+            from pathlib import Path as _Path
+            orig_ext = _Path(job.get("file_name") or "").suffix or ""
+            uploaded_path = DATA_DIR / f"{job_id}_uploaded{orig_ext}"
+            normalized = DATA_DIR / f"{job_id}_normalized.wav"
+            try:
+                normalize_audio(uploaded_path, normalized)
+            except Exception as e:
+                print(f"[AVISO] FFmpeg não disponível, usando arquivo original: {e}")
+                import shutil
+                shutil.copy(uploaded_path, normalized)
         else:
-            normalized = DATA_DIR / f"{job_id}.wav"
+            # Fallback: expect a pre-saved normalized wav
+            normalized = DATA_DIR / f"{job_id}_normalized.wav"
         
         job_manager.update_job(job_id, progress=40, stage="Processando transcrição neural...")
         
-        if job["source"] == "file" and job.get("file_name"):
-            normalized = DATA_DIR / f"{job_id}.wav"
+        # normalized already computed above for both URL and file
         
         from app.processor import transcribe_audio
         output_dir = DATA_DIR / f"{job_id}"
@@ -217,8 +232,8 @@ async def process_audio(job_id: str):
             transpose_to_range(filtered_midi, filtered_midi, min_note=36, max_note=84)
             normalize_velocity(filtered_midi, filtered_midi, velocity=80)
             quantize_timing(filtered_midi, filtered_midi, grid="1/16")
-            deduplicate_notes(filtered_midi, filtered_midi, start_threshold_ms=12, min_gap_ms=8)
-            limit_polyphony(filtered_midi, filtered_midi, max_simultaneous=6, same_start_ms=15)
+            deduplicate_notes(filtered_midi, filtered_midi, start_threshold_ms=5, min_gap_ms=3)
+            limit_polyphony(filtered_midi, filtered_midi, max_simultaneous=12, same_start_ms=10)
             convert_zero_velocity_to_note_off(filtered_midi, filtered_midi)
             enforce_channel_and_program(filtered_midi, filtered_midi, channel=0, program=0)
         else:
