@@ -9,7 +9,7 @@ def download_audio(url: str, output_path: Path) -> Path:
     output_path.mkdir(parents=True, exist_ok=True)
     output_file = output_path / "audio"
     
-ydl_opts = {
+    ydl_opts = {
         'format': '18[ext=mp4]/best[ext=mp4]/best',
         'outtmpl': str(output_file) + '.%(ext)s',
         'nocheckcertificate': True,
