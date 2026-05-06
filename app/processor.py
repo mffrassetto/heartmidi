@@ -6,7 +6,7 @@ import pretty_midi
 import os
 import traceback
 
-def filter_notes_by_onsets(midi_data: pretty_midi.PrettyMIDI, onset_times: np.ndarray, window_ms: float = 250):
+def filter_notes_by_onsets(midi_data: pretty_midi.PrettyMIDI, onset_times: np.ndarray, window_ms: float = 350):
     """
     Keep only notes that start near a detected physical onset (attack).
     This helps remove 'tail' notes and artifacts.

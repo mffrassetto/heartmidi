@@ -222,10 +222,12 @@ def limit_polyphony(midi_path: Path, output_path: Path, max_simultaneous: int = 
             else:
                 # If we're at the limit, see if this new note is "better" than the weakest active note
                 # "Better" = significantly higher velocity or much higher pitch
+                # "Better" = significantly higher velocity (importance)
+                # We reduced the pitch bias to avoid swallowing middle notes
                 active.sort(key=lambda x: (x.velocity, x.pitch))
                 weakest = active[0]
                 
-                if n.velocity > weakest.velocity or (n.pitch > weakest.pitch and n.velocity >= weakest.velocity * 0.8):
+                if n.velocity > weakest.velocity or (n.pitch > weakest.pitch and n.velocity > weakest.velocity * 0.9):
                     # Replace weakest with this one, but truncate weakest's end time
                     weakest.end = n.start
                     kept.append(n)

@@ -227,7 +227,7 @@ async def process_audio(job_id: str):
         
         if job.get("apply_filters", True):
             # Apply essential game-engine filters
-            print("[PROCESS] Applying game-engine filters: Deduplication/Chord Snap, Polyphony(3), Noise Removal, and Scale Clamping.")
+            print("[PROCESS] Applying game-engine filters: Deduplication/Chord Snap, Polyphony(4), Noise Removal, and Scale Clamping.")
             
             # Step 1: Remove artifacts and noise
             clean_short_notes(midi_path, midi_path, min_duration_ms=50)
@@ -235,8 +235,8 @@ async def process_audio(job_id: str):
             # Step 1.5: Align chords and merge same-pitch overlaps
             deduplicate_notes(midi_path, midi_path)
             
-            # Step 2: Limit polyphony to 3 notes (prioritizing melody/intensity)
-            limit_polyphony(midi_path, midi_path, max_simultaneous=3)
+            # Step 2: Limit polyphony to 4 notes (better for rich arrangements)
+            limit_polyphony(midi_path, midi_path, max_simultaneous=4)
             
             # Step 3: Clamp to Heartopia scale (Final step)
             clamp_to_heartopia_scale(midi_path, filtered_midi)
