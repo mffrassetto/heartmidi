@@ -73,29 +73,32 @@ def transcribe_audio(audio_path: Path, output_dir: Path) -> Path:
             
             for pitch_idx in range(min(onset_arr.shape[0], 128)):
                 pitch_onsets = onset_arr[pitch_idx]
+                if pitch_onsets.ndim > 1:
+                    pitch_onsets = pitch_onsets.flatten()
                 above_threshold = np.where(pitch_onsets > min_onset_value)[0]
                 
                 if len(above_threshold) == 0:
                     continue
                 
                 onsets_grouped = []
-                start = above_threshold[0]
+                start = int(above_threshold[0])
                 
                 for i in range(1, len(above_threshold)):
-                    if above_threshold[i] - above_threshold[i-1] > 10:
+                    if int(above_threshold[i]) - int(above_threshold[i-1]) > 10:
                         onsets_grouped.append(start)
-                        start = above_threshold[i]
+                        start = int(above_threshold[i])
                 onsets_grouped.append(start)
                 
                 for t_start in onsets_grouped:
-                    t_end = t_start + min_duration_frames
+                    t_start_val = int(t_start)
+                    t_end = t_start_val + min_duration_frames
                     if t_end < len(pitch_onsets):
-                        t_end = int(np.argmax(pitch_onsets[t_start:]) + t_start)
+                        t_end = int(np.argmax(pitch_onsets[t_start_val:]) + t_start_val)
                     else:
                         t_end = len(pitch_onsets) - 1
                     
                     notes_list.append([
-                        t_start / fps,
+                        t_start_val / fps,
                         t_end / fps,
                         pitch_idx + 21,
                         80
