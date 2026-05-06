@@ -146,7 +146,7 @@ async def process_audio(job_id: str):
         
         if job.get("apply_filters", True):
             apply_heartopia_filters(midi_path, filtered_midi)
-            clean_short_notes(filtered_midi, filtered_midi, MIN_NOTE_DURATION_MS=50)
+            clean_short_notes(filtered_midi, filtered_midi, min_duration_ms=50)
             transpose_to_range(filtered_midi, filtered_midi, min_note=36, max_note=84)
         else:
             import shutil
