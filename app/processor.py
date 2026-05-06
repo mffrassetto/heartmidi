@@ -51,7 +51,7 @@ def transcribe_audio(audio_path: Path, output_dir: Path) -> Path:
         
         notes_list = []
         
-if onset_data is not None:
+        if onset_data is not None:
             try:
                 onset_arr = np.array(onset_data, dtype=np.float32)
             except Exception as e:
@@ -67,7 +67,7 @@ if onset_data is not None:
                         onset_arr = onset_arr[:, :128]
             except Exception as e:
                 print(f"[PROCESSOR] Error reshaping: {e}")
-                continue
+                onset_arr = np.zeros((1, 1), dtype=np.float32)
             
             print(f"[PROCESSOR] Onset array shape: {onset_arr.shape}")
             
