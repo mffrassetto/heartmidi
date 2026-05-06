@@ -8,6 +8,7 @@ env/
 ENV/
 data/
 *.log
+*.mid
 .DS_Store
 .venv
 *.egg-info/
