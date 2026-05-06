@@ -10,12 +10,9 @@ def download_audio(url: str, output_path: Path) -> Path:
     output_file = output_path / "audio"
     
     ydl_opts = {
-        'format': '18',
+        'format': '18/best',
         'outtmpl': str(output_file) + '.%(ext)s',
         'nocheckcertificate': True,
-        'extractor_args': {
-            'youtube': {'player_client': ['android']},
-        },
     }
     
     if Path(COOKIES_FILE).exists():
