@@ -116,7 +116,13 @@ def quantize_timing(midi_path: Path, output_path: Path, grid: str = "1/16", stre
     return output_path
 
 def transpose_to_range(midi_path: Path, output_path: Path, min_note: int = 36, max_note: int = 84) -> Path:
-    """Range adjusted to C2-C6 (common for game instruments) while preserving octave transpositions."""
+    """
+    Range adjusted to C2-C6 (common for game instruments) while preserving octave transpositions.
+    
+    NOTE: This function is MUTUALLY EXCLUSIVE with clamp_to_heartopia_scale.
+    Calling both in sequence will double-transpose notes and produce incorrect results.
+    For Heartopia game output, use clamp_to_heartopia_scale instead.
+    """
     mid = MidiFile(str(midi_path))
     for track in mid.tracks:
         for msg in track:
@@ -165,10 +171,17 @@ def deduplicate_notes(midi_path: Path, output_path: Path, overlap_threshold: flo
         if not inst.notes: continue
         
         # Step 1: Align starts (Chord Snapping)
+        # Uses group-based clustering: all notes within snap_window_ms of the
+        # group's anchor (first note) are aligned to that anchor.
+        # This avoids the sequential propagation bug where pairwise snapping
+        # could misalign notes in chords of 3+ simultaneous notes.
         inst.notes.sort(key=lambda x: x.start)
+        group_anchor = inst.notes[0].start
         for i in range(1, len(inst.notes)):
-            if inst.notes[i].start - inst.notes[i-1].start < snap_s:
-                inst.notes[i].start = inst.notes[i-1].start
+            if inst.notes[i].start - group_anchor < snap_s:
+                inst.notes[i].start = group_anchor
+            else:
+                group_anchor = inst.notes[i].start
 
         # Step 2: Merge overlapping same-pitch notes
         by_pitch = {}

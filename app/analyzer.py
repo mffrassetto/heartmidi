@@ -13,7 +13,7 @@ def analyze_peak_frequency(audio_path: str):
     # Apply FFT
     N = len(y)
     yf = scipy.fftpack.fft(y)
-    xf = np.linspace(0.0, 1.0/(2.0/sr), N//2)
+    xf = np.linspace(0.0, sr / 2.0, N // 2)  # Nyquist frequency
     
     # Find peak in the positive frequency range
     magnitudes = 2.0/N * np.abs(yf[:N//2])

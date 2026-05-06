@@ -1,6 +1,7 @@
 import os
 import uuid
 import asyncio
+import json
 from pathlib import Path
 from typing import Optional
 import mido
@@ -29,7 +30,30 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 class JobManager:
     def __init__(self):
         self.jobs = {}
+        self._load_persisted_jobs()
     
+    def _job_file(self, job_id: str) -> Path:
+        return DATA_DIR / f"{job_id}.job.json"
+    
+    def _load_persisted_jobs(self):
+        """Load all persisted job states from disk on startup."""
+        for f in DATA_DIR.glob("*.job.json"):
+            try:
+                with open(f, "r") as fh:
+                    data = json.load(fh)
+                    self.jobs[data["job_id"]] = data
+            except Exception:
+                pass
+    
+    def _persist(self, job_id: str):
+        """Write current job state to disk."""
+        try:
+            data = {"job_id": job_id, **self.jobs[job_id]}
+            with open(self._job_file(job_id), "w") as fh:
+                json.dump(data, fh)
+        except Exception as e:
+            print(f"[AVISO] Não foi possível persistir job {job_id}: {e}")
+
     def create_job(self, source: str, url: Optional[str] = None, file_name: Optional[str] = None, 
                  instrument: str = "piano", apply_filters: bool = True, quantize: str = "1/16") -> str:
         job_id = str(uuid.uuid4())
@@ -48,11 +72,13 @@ class JobManager:
             "note_count": 0,
             "duration": "00:00"
         }
+        self._persist(job_id)
         return job_id
     
     def update_job(self, job_id: str, **kwargs):
         if job_id in self.jobs:
             self.jobs[job_id].update(kwargs)
+            self._persist(job_id)
     
     def get_job(self, job_id: str):
         return self.jobs.get(job_id)
@@ -227,7 +253,7 @@ async def process_audio(job_id: str):
         
         if job.get("apply_filters", True):
             # Apply essential game-engine filters
-            print("[PROCESS] Applying game-engine filters: Deduplication/Chord Snap, Polyphony(4), Noise Removal, and Scale Clamping.")
+            print("[PROCESS] Applying game-engine filters: Deduplication/Chord Snap, Quantization, Polyphony(4), Noise Removal, and Scale Clamping.")
             
             # Step 1: Remove artifacts and noise
             clean_short_notes(midi_path, midi_path, min_duration_ms=50)
@@ -235,10 +261,16 @@ async def process_audio(job_id: str):
             # Step 1.5: Align chords and merge same-pitch overlaps
             deduplicate_notes(midi_path, midi_path)
             
-            # Step 2: Limit polyphony to 4 notes (better for rich arrangements)
+            # Step 2: Quantize timing with auto-detected BPM and latency compensation
+            from app.formatter import quantize_timing, detect_bpm
+            bpm = detect_bpm(normalized)
+            print(f"[PROCESS] Auto-detected BPM: {bpm:.2f}. Applying quantize ({job.get('quantize', '1/16')}) + latency compensation (-25ms)...")
+            quantize_timing(midi_path, midi_path, grid=job.get('quantize', '1/16'), strength=0.7, bpm=bpm, latency_offset_ms=-25)
+            
+            # Step 3: Limit polyphony to 4 notes (better for rich arrangements)
             limit_polyphony(midi_path, midi_path, max_simultaneous=4)
             
-            # Step 3: Clamp to Heartopia scale (Final step)
+            # Step 4: Clamp to Heartopia scale (Final step)
             clamp_to_heartopia_scale(midi_path, filtered_midi)
         else:
             import shutil

@@ -52,6 +52,7 @@ def transcribe_audio(
         if use_dynamic_threshold:
             print("[PROCESSOR] Applying Dynamic Threshold (Onset Attack Detection)...")
             # Load audio for librosa onset detection
+            # Load audio for librosa onset detection at the same sr used during normalization
             y, sr = librosa.load(str(audio_path), sr=22050)
             onset_env = librosa.onset.onset_strength(y=y, sr=sr)
             onsets = librosa.onset.onset_detect(onset_envelope=onset_env, sr=sr, units='time')

@@ -26,14 +26,13 @@ def download_audio(url: str, output_path: Path) -> Path:
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
     
-    audio_file = output_path / "audio.mp4"
-    if not audio_file.exists():
-        audio_file = output_path / "audio.webm"
-    
-    if not audio_file.exists():
+    # Use glob to find the downloaded file regardless of extension
+    # (yt-dlp may use .mp4, .webm, .m4a, .opus, .ogg, etc.)
+    candidates = sorted(output_path.glob("audio.*"))
+    if not candidates:
         raise FileNotFoundError(f"Arquivo de áudio não encontrado em {output_path}")
     
-    return audio_file
+    return candidates[0]
 
 def normalize_audio(input_path: Path, output_path: Path, sample_rate: int = 22050, channels: int = 1):
     """
