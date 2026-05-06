@@ -241,7 +241,7 @@ async def process_audio(job_id: str):
             transpose_to_range(filtered_midi, filtered_midi, min_note=48, max_note=84)
             clamp_to_heartopia_scale(filtered_midi, filtered_midi)
             normalize_velocity(filtered_midi, filtered_midi, velocity=80)
-            quantize_timing(filtered_midi, filtered_midi, grid="1/16", strength=0.7)
+            quantize_timing(filtered_midi, filtered_midi, grid="1/16", strength=1.0)
             deduplicate_notes(filtered_midi, filtered_midi, overlap_threshold=0.8)
             limit_polyphony(filtered_midi, filtered_midi, max_simultaneous=16)
             convert_zero_velocity_to_note_off(filtered_midi, filtered_midi)

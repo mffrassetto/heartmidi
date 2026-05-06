@@ -64,37 +64,41 @@ def shift_pitch(midi_path: Path, output_path: Path, semitones: int = -12) -> Pat
     mid.save(str(output_path))
     return output_path
 
-def quantize_timing(midi_path: Path, output_path: Path, grid: str = "1/16", strength: float = 0.8) -> Path:
-    """Quantize notes but with a 'strength' parameter to avoid complete destruction of natural feel."""
+def quantize_timing(midi_path: Path, output_path: Path, grid: str = "1/16", strength: float = 1.0, bpm: float = None) -> Path:
+    """Quantize notes to a grid based on BPM. strength=1.0 means hard quantization."""
     pm = pretty_midi.PrettyMIDI(str(midi_path))
     
     total_notes = sum(len(inst.notes) for inst in pm.instruments)
-    if total_notes < 4:
+    if total_notes < 1:
         pm.write(str(output_path))
         return output_path
 
-    try:
-        # Better tempo estimation: check common ranges
-        tempo = pm.estimate_tempo()
-        if tempo < 40 or tempo > 240:
+    if bpm:
+        tempo = bpm
+    else:
+        try:
+            tempo = pm.estimate_tempo()
+            if tempo < 40 or tempo > 240:
+                tempo = 120.0
+        except Exception:
             tempo = 120.0
-    except Exception:
-        tempo = 120.0
         
     grid_map = {"1/1":1, "1/2":2, "1/4":4, "1/8":8, "1/16":16, "1/32":32}
     spb = grid_map.get(grid, 16)
     
+    # Calculate step in seconds
     seconds_per_beat = 60.0 / tempo
-    step = seconds_per_beat / (spb / 4) # Corrected logic for grid
+    step = seconds_per_beat / (spb / 4.0)
     
     for inst in pm.instruments:
         for n in inst.notes:
+            # Round start time
             target_start = round(n.start / step) * step
-            # Apply strength: 1.0 = full quantization, 0.0 = no quantization
             n.start = n.start + strength * (target_start - n.start)
             
+            # Round end time
             target_end = round(n.end / step) * step
-            n.end = max(n.start + 0.01, n.end + strength * (target_end - n.end))
+            n.end = max(n.start + 0.05, n.end + strength * (target_end - n.end))
             
     pm.write(str(output_path))
     return output_path
