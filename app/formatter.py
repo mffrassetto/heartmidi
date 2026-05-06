@@ -28,6 +28,17 @@ def apply_heartopia_filters(midi_path: Path, output_path: Path) -> Path:
     mid.save(str(output_path))
     return output_path
 
+def shift_pitch(midi_path: Path, output_path: Path, semitones: int = -12) -> Path:
+    """Shift all notes by a fixed number of semitones."""
+    mid = MidiFile(str(midi_path))
+    for track in mid.tracks:
+        for msg in track:
+            if msg.type in ['note_on', 'note_off']:
+                new_note = msg.note + semitones
+                msg.note = max(0, min(127, new_note))
+    mid.save(str(output_path))
+    return output_path
+
 def quantize_timing(midi_path: Path, output_path: Path, grid: str = "1/16", strength: float = 0.8) -> Path:
     """Quantize notes but with a 'strength' parameter to avoid complete destruction of natural feel."""
     pm = pretty_midi.PrettyMIDI(str(midi_path))
