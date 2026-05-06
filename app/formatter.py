@@ -8,14 +8,14 @@ import numpy as np
 MIN_NOTE_DURATION_MS = 50 # Adjusted to 50ms as per project.md
 DEFAULT_VELOCITY = 80
 
-# Heartopia 22-key layout (3 octaves of C Major + C6)
-# Range: C3 (48) to C6 (84)
+# Heartopia 22-key layout (3 octaves of C Major + C7)
+# Range: C4 (60) to C7 (96)
 # Notes: C, D, E, F, G, A, B
 HEARTOPIA_ALLOWED_NOTES = [
-    48, 50, 52, 53, 55, 57, 59, # Octave 3
     60, 62, 64, 65, 67, 69, 71, # Octave 4
     72, 74, 76, 77, 79, 81, 83, # Octave 5
-    84                          # C6
+    84, 86, 88, 89, 91, 93, 95, # Octave 6
+    96                          # C7
 ]
 
 def clamp_to_heartopia_scale(midi_path: Path, output_path: Path) -> Path:
