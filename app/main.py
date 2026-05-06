@@ -158,7 +158,14 @@ async def process_audio(job_id: str):
         
         job_manager.update_job(job_id, progress=70, stage="Aplicando filtros...")
         
-        from app.formatter import clean_short_notes, transpose_to_range, apply_heartopia_filters
+        from app.formatter import (
+            clean_short_notes,
+            transpose_to_range,
+            apply_heartopia_filters,
+            normalize_velocity,
+            enforce_channel_and_program,
+            quantize_timing,
+        )
         
         filtered_midi = DATA_DIR / f"{job_id}.mid"
         
@@ -166,6 +173,9 @@ async def process_audio(job_id: str):
             apply_heartopia_filters(midi_path, filtered_midi)
             clean_short_notes(filtered_midi, filtered_midi, min_duration_ms=50)
             transpose_to_range(filtered_midi, filtered_midi, min_note=36, max_note=84)
+            normalize_velocity(filtered_midi, filtered_midi, velocity=80)
+            quantize_timing(filtered_midi, filtered_midi, grid="1/16")
+            enforce_channel_and_program(filtered_midi, filtered_midi, channel=0, program=0)
         else:
             import shutil
             shutil.copy(midi_path, filtered_midi)

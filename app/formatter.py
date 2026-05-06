@@ -1,5 +1,6 @@
 import mido
 from mido import MidiFile, MidiTrack, Message, tempo2bpm, bpm2tempo
+import pretty_midi
 from pathlib import Path
 from typing import List, Tuple
 
@@ -8,111 +9,89 @@ DEFAULT_VELOCITY = 64
 
 def apply_heartopia_filters(midi_path: Path, output_path: Path) -> Path:
     mid = MidiFile(str(midi_path))
-    
+    # Keep only essential meta and note/program messages for game engines
+    allowed_meta = {'set_tempo', 'time_signature', 'end_of_track'}
+    allowed_channel = {'note_on', 'note_off', 'program_change'}
     for track in mid.tracks:
-        messages = list(track)
-        
-        filtered_messages = []
-        pending_noteoffs = {}
-        
-        i = 0
-        while i < len(messages):
-            msg = messages[i]
-            
-            if msg.type == 'note_on':
-                note = msg.note
-                velocity = msg.velocity
-                time = msg.time
-                
-                if velocity > 0:
-                    pending_noteoffs[note] = {'time': time, 'velocity': velocity}
-                else:
-                    if note in pending_noteoffs:
-                        del pending_noteoffs[note]
-                    
-                    filtered_messages.append(msg)
-            
-            elif msg.type == 'note_off':
-                note = msg.note
-                if note in pending_noteoffs:
-                    del pending_noteoffs[note]
-                filtered_messages.append(msg)
-            
-            elif msg.type in ['text', 'marker', 'lyric']:
-                pass
-            
+        filtered = []
+        for msg in track:
+            if msg.is_meta:
+                if msg.type in allowed_meta:
+                    filtered.append(msg)
             else:
-                filtered_messages.append(msg)
-            
-            i += 1
-        
-        track[:] = filtered_messages
-    
+                if msg.type in allowed_channel:
+                    filtered.append(msg)
+        track[:] = filtered
     mid.save(str(output_path))
     return output_path
 
 def quantize_timing(midi_path: Path, output_path: Path, grid: str = "1/16") -> Path:
-    mid = MidiFile(str(midi_path))
-    ticks_per_beat = mid.ticks_per_beat
-    
-    grid_fractions = {"1/4": 1, "1/8": 2, "1/16": 4, "1/32": 8}
-    grid_multiplier = grid_fractions.get(grid, 4)
-    
-    for track in mid.tracks:
-        cumulative_time = 0
-        
-        for msg in track:
-            cumulative_time += msg.time
-            
-            if msg.type in ['note_on', 'note_off', 'pitchwheel']:
-                aligned_ticks = (cumulative_time * grid_multiplier) // grid_multiplier
-                msg.time = aligned_ticks - (cumulative_time - msg.time)
-    
-    mid.save(str(output_path))
+    # Quantize by rounding note start/end times to nearest grid step using PrettyMIDI
+    pm = pretty_midi.PrettyMIDI(str(midi_path))
+    # Estimate a single representative tempo
+    tempi = pm.estimate_tempo()
+    # Steps per beat
+    grid_map = {"1/1":1, "1/2":2, "1/4":4, "1/8":8, "1/16":16, "1/32":32}
+    spb = grid_map.get(grid, 16)
+    if tempi <= 0:
+        tempi = 120.0
+    seconds_per_beat = 60.0 / tempi
+    step = seconds_per_beat / spb
+    for inst in pm.instruments:
+        for n in inst.notes:
+            n.start = round(n.start / step) * step
+            n.end = max(n.start, round(n.end / step) * step)
+    pm.write(str(output_path))
     return output_path
 
 def transpose_to_range(midi_path: Path, output_path: Path, min_note: int = 36, max_note: int = 84) -> Path:
     mid = MidiFile(str(midi_path))
-    
     for track in mid.tracks:
         for msg in track:
-            if msg.type in ['note_on', 'note_off', 'note_at']:
+            if msg.type in ['note_on', 'note_off']:
                 if msg.note < min_note:
                     msg.note = min_note
                 elif msg.note > max_note:
                     msg.note = max_note
-    
     mid.save(str(output_path))
     return output_path
 
 def clean_short_notes(midi_path: Path, output_path: Path, min_duration_ms: int = MIN_NOTE_DURATION_MS) -> Path:
+    # Use PrettyMIDI for robust duration computation and filtering
+    pm = pretty_midi.PrettyMIDI(str(midi_path))
+    threshold_s = max(0.0, (min_duration_ms or 0) / 1000.0)
+    for inst in pm.instruments:
+        inst.notes = [n for n in inst.notes if (n.end - n.start) >= threshold_s]
+    pm.write(str(output_path))
+    return output_path
+
+def normalize_velocity(midi_path: Path, output_path: Path, velocity: int = DEFAULT_VELOCITY) -> Path:
     mid = MidiFile(str(midi_path))
-    ticks_per_ms = (mid.ticks_per_beat * 1000) / 500000
-    min_ticks = int(min_duration_ms * ticks_per_ms)
-    
+    vel = max(1, min(127, int(velocity)))
     for track in mid.tracks:
-        active_notes = {}
-        new_messages = []
-        
         for msg in track:
             if msg.type == 'note_on' and msg.velocity > 0:
-                active_notes[msg.note] = msg.time
-                new_messages.append(msg)
-            
-            elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
-                note = msg.note
-                if note in active_notes:
-                    note_duration = msg.time - active_notes[note]
-                    if note_duration >= min_ticks:
-                        new_messages.append(msg)
-                    del active_notes[note]
-                else:
-                    new_messages.append(msg)
-            else:
-                new_messages.append(msg)
-        
-        track[:] = new_messages
-    
+                msg.velocity = vel
+    mid.save(str(output_path))
+    return output_path
+
+def enforce_channel_and_program(midi_path: Path, output_path: Path, channel: int = 0, program: int = 0) -> Path:
+    ch = max(0, min(15, int(channel)))
+    prog = max(0, min(127, int(program)))
+    mid = MidiFile(str(midi_path))
+    # Ensure a program change exists at start of first non-meta track
+    for t in mid.tracks:
+        # Insert a program change at the beginning if none present
+        has_pc = any((not m.is_meta and m.type == 'program_change') for m in t)
+        if not has_pc:
+            t.insert(0, Message('program_change', program=prog, time=0, channel=ch))
+        # Normalize channel on channel messages
+        for m in t:
+            if not m.is_meta and hasattr(m, 'channel'):
+                m.channel = ch
+            if not m.is_meta and m.type == 'program_change':
+                m.program = prog
+        break
     mid.save(str(output_path))
     return output_path
 
