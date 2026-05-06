@@ -14,7 +14,7 @@ def download_audio(url: str, output_path: Path) -> Path:
         'outtmpl': str(output_file) + '.%(ext)s',
         'nocheckcertificate': True,
         'js_runtimes': {'node': {}},
-        'remote_components': 'ejs:github',
+        'remote_components': ['ejs:github'],
     }
     
     if Path(COOKIES_FILE).exists():
