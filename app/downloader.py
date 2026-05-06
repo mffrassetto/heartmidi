@@ -16,6 +16,7 @@ def download_audio(url: str, output_path: Path) -> Path:
         'quiet': False,
         'verbose': True,
         'js_runtimes': {'node': {}},
+        'remote_components': 'ejs:github',
     }
     
     if Path(COOKIES_FILE).exists():
