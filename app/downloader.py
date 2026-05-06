@@ -10,13 +10,11 @@ def download_audio(url: str, output_path: Path) -> Path:
     output_file = output_path / "audio"
     
     ydl_opts = {
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo[ext=webm]+bestaudio[ext=webm]/best',
+        'format': 'best',
         'outtmpl': str(output_file) + '.%(ext)s',
         'nocheckcertificate': True,
         'quiet': False,
         'verbose': True,
-        'js_runtimes': {'node': {}},
-        'remote_components': 'ejs:github',
     }
     
     if Path(COOKIES_FILE).exists():
