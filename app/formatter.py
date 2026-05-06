@@ -178,6 +178,16 @@ def enforce_channel_and_program(midi_path: Path, output_path: Path, channel: int
     mid.save(str(output_path))
     return output_path
 
+def convert_zero_velocity_to_note_off(midi_path: Path, output_path: Path) -> Path:
+    """Normalize zero-velocity note_on messages to explicit note_off for better compatibility."""
+    mid = MidiFile(str(midi_path))
+    for tr in mid.tracks:
+        for i, m in enumerate(tr):
+            if not m.is_meta and m.type == 'note_on' and m.velocity == 0:
+                tr[i] = Message('note_off', note=m.note, velocity=0, time=m.time, channel=getattr(m, 'channel', 0))
+    mid.save(str(output_path))
+    return output_path
+
 def main():
     import sys
     if len(sys.argv) > 1:
