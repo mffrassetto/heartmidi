@@ -41,11 +41,16 @@ def transcribe_audio(audio_path: Path, output_dir: Path) -> Path:
     elif 'note' in result:
         print(f"[PROCESSOR] Generating MIDI from note events...")
         note_array = result['note']
+        print(f"[PROCESSOR] Note array: {type(note_array)}, len={len(note_array) if hasattr(note_array, '__len__') else 'N/A'}")
+        
+        if not note_array or len(note_array) == 0:
+            raise RuntimeError("Nenhuma nota detectada pelo modelo")
         
         pm = pretty_midi.PrettyMIDI()
         instrument = pretty_midi.Instrument(0)
         
-        for note in note_array:
+        notes_added = 0
+        for i, note in enumerate(note_array):
             if len(note) >= 3:
                 start = float(note[0])
                 end = float(note[1])
@@ -60,9 +65,16 @@ def transcribe_audio(audio_path: Path, output_dir: Path) -> Path:
                         end=end
                     )
                     instrument.notes.append(midi_note)
+                    notes_added += 1
+                    if notes_added <= 10:
+                        print(f"[PROCESSOR] Added note: start={start}, end={end}, pitch={pitch}")
+        
+        print(f"[PROCESSOR] Total notes added: {notes_added}")
         
         pm.instruments.append(instrument)
+        print(f"[PROCESSOR] Writing MIDI file...")
         pm.write(str(output_midi))
+        print(f"[PROCESSOR] MIDI written, size={output_midi.stat().st_size}")
     else:
         raise RuntimeError(f"Falha ao gerar arquivo MIDI: nenhuma chave compatível. chaves: {result.keys()}")
     
