@@ -253,24 +253,28 @@ async def process_audio(job_id: str):
         
         if job.get("apply_filters", True):
             # Apply essential game-engine filters
-            print("[PROCESS] Applying game-engine filters: Deduplication/Chord Snap, Quantization, Polyphony(4), Noise Removal, and Scale Clamping.")
+            print("[PROCESS] Applying game-engine filters: Noise Removal, Dedup, Polyphony(4), Quantization, Scale Clamping.")
             
             # Step 1: Remove artifacts and noise
             clean_short_notes(midi_path, midi_path, min_duration_ms=50)
             
-            # Step 1.5: Align chords and merge same-pitch overlaps
+            # Step 2: Align chords and merge same-pitch overlaps
             deduplicate_notes(midi_path, midi_path)
             
-            # Step 2: Quantize timing with auto-detected BPM and latency compensation
+            # Step 3: Limit polyphony BEFORE quantization.
+            # Quantize can snap staggered notes onto the same grid point, artificially
+            # inflating simultaneous note count and causing limit_polyphony to discard
+            # more notes than intended. Applying it first ensures we only drop notes
+            # that were genuinely simultaneous in the original transcription.
+            limit_polyphony(midi_path, midi_path, max_simultaneous=4)
+            
+            # Step 4: Quantize timing with auto-detected BPM and latency compensation
             from app.formatter import quantize_timing, detect_bpm
             bpm = detect_bpm(normalized)
             print(f"[PROCESS] Auto-detected BPM: {bpm:.2f}. Applying quantize ({job.get('quantize', '1/16')}) + latency compensation (-25ms)...")
             quantize_timing(midi_path, midi_path, grid=job.get('quantize', '1/16'), strength=0.7, bpm=bpm, latency_offset_ms=-25)
             
-            # Step 3: Limit polyphony to 4 notes (better for rich arrangements)
-            limit_polyphony(midi_path, midi_path, max_simultaneous=4)
-            
-            # Step 4: Clamp to Heartopia scale (Final step)
+            # Step 5: Clamp to Heartopia scale (Final step)
             clamp_to_heartopia_scale(midi_path, filtered_midi)
         else:
             import shutil

@@ -6,16 +6,25 @@ import pretty_midi
 import os
 import traceback
 
-def filter_notes_by_onsets(midi_data: pretty_midi.PrettyMIDI, onset_times: np.ndarray, window_ms: float = 350):
+def filter_notes_by_onsets(midi_data: pretty_midi.PrettyMIDI, onset_times: np.ndarray, window_ms: float = 600):
     """
-    Keep only notes that start near a detected physical onset (attack).
-    This helps remove 'tail' notes and artifacts.
+    DEPRECATED — no longer called in the main pipeline.
+
+    This filter was causing inner voices and legato notes to be silently dropped:
+    notes that start during the sustain of another note have no detectable onset
+    transient in librosa, so their distance to the nearest onset often exceeds
+    any reasonable window. basic-pitch's own onset_threshold already handles
+    artifact suppression, making this filter redundant and destructive.
+
+    Kept for reference / manual debugging only.
     """
     window_s = window_ms / 1000.0
     for inst in midi_data.instruments:
         filtered_notes = []
         for note in inst.notes:
-            # Check if any detected onset is within the window of the note start
+            if len(onset_times) == 0:
+                filtered_notes.append(note)  # No onsets detected: keep all notes
+                continue
             dist = np.min(np.abs(onset_times - note.start))
             if dist <= window_s:
                 filtered_notes.append(note)
@@ -50,15 +59,10 @@ def transcribe_audio(
         )
         
         if use_dynamic_threshold:
-            print("[PROCESSOR] Applying Dynamic Threshold (Onset Attack Detection)...")
-            # Load audio for librosa onset detection
-            # Load audio for librosa onset detection at the same sr used during normalization
-            y, sr = librosa.load(str(audio_path), sr=22050)
-            onset_env = librosa.onset.onset_strength(y=y, sr=sr)
-            onsets = librosa.onset.onset_detect(onset_envelope=onset_env, sr=sr, units='time')
-            
-            # Filter notes
-            midi_data = filter_notes_by_onsets(midi_data, onsets)
+            # Onset-based filtering has been disabled: it caused inner voices and
+            # legato notes to be dropped because they lack a strong attack transient.
+            # basic-pitch's onset_threshold=0.4 is already sufficient for noise control.
+            print("[PROCESSOR] Dynamic onset filter skipped — relying on basic-pitch onset_threshold.")
             
     except Exception as e:
         print(f"[PROCESSOR] Prediction error: {e}")
