@@ -9,14 +9,19 @@ def download_audio(url: str, output_path: Path) -> Path:
     output_path.mkdir(parents=True, exist_ok=True)
     output_file = output_path / "audio"
     
-    ydl_opts = {
-        'format': '18/best',
+ydl_opts = {
+        'format': '18[ext=mp4]/best[ext=mp4]/best',
         'outtmpl': str(output_file) + '.%(ext)s',
         'nocheckcertificate': True,
+        'quiet': False,
+        'verbose': True,
     }
     
     if Path(COOKIES_FILE).exists():
         ydl_opts['cookiefile'] = COOKIES_FILE
+        print(f"[INFO] Using cookies from {COOKIES_FILE}")
+    else:
+        print(f"[INFO] Cookies file not found at {COOKIES_FILE}, trying without authentication")
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
