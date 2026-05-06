@@ -118,7 +118,7 @@ async def convert_audio(
     file: Optional[UploadFile] = File(None),
     instrument: str = Form("piano"),
     apply_filters: bool = Form(True),
-    quantize: str = Form("1/16")
+    quantize: str = Form("none")
 ):
     try:
         file_name = "uploaded_file"
