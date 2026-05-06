@@ -2,8 +2,7 @@ import yt_dlp
 import subprocess
 from pathlib import Path
 import os
-
-COOKIES_FILE = os.path.expanduser("~/.config/yt-dlp/cookies.txt")
+import subprocess
 
 def download_audio(url: str, output_path: Path) -> Path:
     output_path.mkdir(parents=True, exist_ok=True)
@@ -13,6 +12,9 @@ def download_audio(url: str, output_path: Path) -> Path:
         'format': '18',
         'outtmpl': str(output_file) + '.%(ext)s',
         'nocheckcertificate': True,
+        'extractor_args': {
+            'youtube': {'player_client': ['android']},
+        },
     }
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -29,7 +31,7 @@ def download_audio(url: str, output_path: Path) -> Path:
 
 def normalize_audio(input_path: Path, output_path: Path, sample_rate: int = 22050, channels: int = 1):
     cmd = [
-        'ffmpeg', '-i', str(input_path),
+        'ffmpeg', '-y', '-i', str(input_path),
         '-ar', str(sample_rate),
         '-ac', str(channels),
         '-y', str(output_path)
