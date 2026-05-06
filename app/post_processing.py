@@ -17,30 +17,33 @@ from app.formatter import (
     detect_bpm
 )
 
-def limit_to_monophonic(midi_path: Path, output_path: Path) -> Path:
-    """Prioritize only the loudest note at any given time (monophonic melody)."""
+def limit_to_monophonic(midi_path: Path, output_path: Path, tolerance_s: float = 0.1) -> Path:
+    """
+    Ensure only one note plays at a time, but with a small tolerance 
+    to avoid cutting off fast legato transitions.
+    """
     pm = pretty_midi.PrettyMIDI(str(midi_path))
     for inst in pm.instruments:
         if not inst.notes: continue
         
         inst.notes.sort(key=lambda x: x.start)
-        monophonic_notes = []
-        
-        # Simple greedy approach: if notes overlap, keep the one with higher velocity
-        # Or just the first one. Let's try highest velocity.
+        clean_notes = []
         last_end = -1
+        
         for n in inst.notes:
-            if n.start >= last_end:
-                monophonic_notes.append(n)
+            # If the gap is negative (overlap), check the severity
+            if n.start >= last_end - tolerance_s:
+                # If there's a slight overlap, just trim the previous note
+                if clean_notes and n.start < last_end:
+                    clean_notes[-1].end = n.start
+                clean_notes.append(n)
                 last_end = n.end
             else:
-                # Overlap! Check if this one is louder
-                if monophonic_notes and n.velocity > monophonic_notes[-1].velocity:
-                    # Replace previous note if this one starts very close and is louder
-                    if n.start - monophonic_notes[-1].start < 0.05:
-                        monophonic_notes[-1] = n
-                        last_end = n.end
-        inst.notes = monophonic_notes
+                # Severe overlap: only keep the loudest
+                if clean_notes and n.velocity > clean_notes[-1].velocity:
+                    clean_notes[-1] = n
+                    last_end = n.end
+        inst.notes = clean_notes
         
     pm.write(str(output_path))
     return output_path
@@ -71,23 +74,18 @@ def merge_consecutive_notes(midi_path: Path, output_path: Path, max_gap_s: float
 
 def run_post_processing_pipeline(midi_path: Path, output_path: Path, audio_path: Path = None, quantize_grid: str = "1/16", monophonic: bool = True):
     """
-    Enhanced pipeline tuned for lead melodies (Heartopia-Core).
+    Universal pipeline: Auto-detects BPM and applies smart monophonic filtering.
     """
     temp_path = output_path
     
-    # 1. BPM Detection with override
-    bpm = 194.0 # Defaulting to the reference BPM found in analysis
+    # 1. Fully Dynamic BPM Detection
+    bpm = 120.0
     if audio_path and audio_path.exists():
         print(f"[POST-PROCESS] Detecting BPM from {audio_path}...")
-        detected = detect_bpm(audio_path)
-        # If detected is close to 194 or 97, use the reference
-        if abs(detected - 194) < 10 or abs(detected - 97) < 5:
-            bpm = 194.0
-        else:
-            bpm = detected
-        print(f"[POST-PROCESS] Using BPM: {bpm:.2f}")
+        bpm = detect_bpm(audio_path)
+        print(f"[POST-PROCESS] Detected BPM: {bpm:.2f}")
 
-    print(f"[POST-PROCESS] Starting reference-match pipeline for {midi_path}")
+    print(f"[POST-PROCESS] Starting universal pipeline for {midi_path}")
     
     # 1. Essential cleanup
     apply_heartopia_filters(midi_path, temp_path)
@@ -95,10 +93,10 @@ def run_post_processing_pipeline(midi_path: Path, output_path: Path, audio_path:
     # 2. Shift pitch (0 offset)
     shift_pitch(temp_path, temp_path, semitones=0)
     
-    # 3. Monophonic Filter (Prioritize lead melody like the reference)
+    # 3. Smart Monophonic Filter (Less aggressive than before)
     if monophonic:
-        print("[POST-PROCESS] Applying Monophonic filter...")
-        limit_to_monophonic(temp_path, temp_path)
+        print("[POST-PROCESS] Applying Smart Monophonic filter...")
+        limit_to_monophonic(temp_path, temp_path, tolerance_s=0.1)
     
     # 4. Minimum noise removal
     clean_short_notes(temp_path, temp_path, min_duration_ms=30)
@@ -106,7 +104,7 @@ def run_post_processing_pipeline(midi_path: Path, output_path: Path, audio_path:
     # 5. Advanced Quantization with Latency Compensation (-25ms)
     if quantize_grid and quantize_grid != "none":
         print(f"[POST-PROCESS] Quantizing to {quantize_grid} grid at {bpm:.2f} BPM...")
-        quantize_timing(temp_path, temp_path, grid=quantize_grid, strength=0.9, bpm=bpm, latency_offset_ms=-25)
+        quantize_timing(temp_path, temp_path, grid=quantize_grid, strength=0.8, bpm=bpm, latency_offset_ms=-25)
     
     # 6. Clamp to Heartopia Scale (22 keys, C4-C7)
     clamp_to_heartopia_scale(temp_path, temp_path)
@@ -115,7 +113,7 @@ def run_post_processing_pipeline(midi_path: Path, output_path: Path, audio_path:
     convert_zero_velocity_to_note_off(temp_path, temp_path)
     enforce_channel_and_program(temp_path, temp_path)
     
-    print(f"[POST-PROCESS] Reference-match pipeline complete: {output_path}")
+    print(f"[POST-PROCESS] Pipeline complete: {output_path}")
     return output_path
 
 if __name__ == "__main__":
