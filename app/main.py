@@ -230,51 +230,53 @@ async def process_audio(job_id: str):
             # Fallback: expect a pre-saved normalized wav
             normalized = DATA_DIR / f"{job_id}_normalized.wav"
         
-        job_manager.update_job(job_id, progress=40, stage="Processando transcrição neural...")
+        job_manager.update_job(job_id, progress=40, stage="Transcrevendo com piano-transcription (Kong 2020)...")
         
         # normalized already computed above for both URL and file
         
         from app.processor import transcribe_audio
         output_dir = DATA_DIR / f"{job_id}"
         output_dir.mkdir(exist_ok=True)
+        # piano-transcription-inference handles all thresholds internally.
+        # Params below are kept for API compatibility but not used by the engine.
         midi_path = transcribe_audio(
-            normalized, 
-            output_dir,
-            onset_threshold=0.4, # More sensitive
-            frame_threshold=0.3,
-            use_dynamic_threshold=True
+            normalized,
+            output_dir
         )
         
         job_manager.update_job(job_id, progress=70, stage="Aplicando filtros...")
         
-        from app.formatter import clamp_to_heartopia_scale, limit_polyphony, clean_short_notes, deduplicate_notes
+        from app.formatter import clamp_to_heartopia_scale, limit_polyphony, clean_short_notes
         
         filtered_midi = DATA_DIR / f"{job_id}.mid"
         
         if job.get("apply_filters", True):
-            # Apply essential game-engine filters
-            print("[PROCESS] Applying game-engine filters: Noise Removal, Dedup, Polyphony(4), Quantization, Scale Clamping.")
-            
-            # Step 1: Remove artifacts and noise
-            clean_short_notes(midi_path, midi_path, min_duration_ms=50)
-            
-            # Step 2: Align chords and merge same-pitch overlaps
-            deduplicate_notes(midi_path, midi_path)
-            
-            # Step 3: Limit polyphony BEFORE quantization.
-            # Quantize can snap staggered notes onto the same grid point, artificially
-            # inflating simultaneous note count and causing limit_polyphony to discard
-            # more notes than intended. Applying it first ensures we only drop notes
-            # that were genuinely simultaneous in the original transcription.
-            limit_polyphony(midi_path, midi_path, max_simultaneous=4)
-            
-            # Step 4: Quantize timing with auto-detected BPM and latency compensation
-            from app.formatter import quantize_timing, detect_bpm
-            bpm = detect_bpm(normalized)
-            print(f"[PROCESS] Auto-detected BPM: {bpm:.2f}. Applying quantize ({job.get('quantize', '1/16')}) + latency compensation (-25ms)...")
-            quantize_timing(midi_path, midi_path, grid=job.get('quantize', '1/16'), strength=0.7, bpm=bpm, latency_offset_ms=-25)
-            
-            # Step 5: Clamp to Heartopia scale (Final step)
+            # Lighter post-processing: piano-transcription-inference already gives
+            # accurate onset+offset, so we avoid destructive deduplication.
+            print("[PROCESS] Applying minimal game-engine filters: Short-note removal, Polyphony(6), Scale Clamping.")
+
+            # Step 1: Remove only very short artifacts (< 30ms = transcription noise)
+            # The game piano has sustain, so we keep notes as short as 30ms.
+            clean_short_notes(midi_path, midi_path, min_duration_ms=30)
+
+            # Step 2: Limit polyphony — Heartopia supports up to 6 simultaneous notes
+            # in rich chord passages. We skip aggressive deduplication here because
+            # the new engine already handles same-pitch overlaps internally.
+            limit_polyphony(midi_path, midi_path, max_simultaneous=6)
+
+            # Step 3: (Optional) Light quantization — only when user requests it.
+            # With piano-transcription, timing is already very accurate; heavy
+            # quantization would flatten musical expression.
+            quantize_str = job.get('quantize', 'none')
+            if quantize_str and quantize_str != 'none':
+                from app.formatter import quantize_timing, detect_bpm
+                bpm = detect_bpm(normalized)
+                print(f"[PROCESS] BPM: {bpm:.2f}. Quantizing to {quantize_str} (strength=0.5)...")
+                quantize_timing(midi_path, midi_path, grid=quantize_str,
+                                strength=0.5, bpm=bpm, latency_offset_ms=0)
+
+            # Step 4: Clamp to Heartopia 22-key scale (C Major, C4–C7)
+            # Source is already from the game so this should cause minimal displacement.
             clamp_to_heartopia_scale(midi_path, filtered_midi)
         else:
             import shutil

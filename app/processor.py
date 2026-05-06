@@ -1,86 +1,90 @@
-import librosa
 import numpy as np
 from pathlib import Path
-from basic_pitch.inference import predict
 import pretty_midi
 import os
 import traceback
 
-def filter_notes_by_onsets(midi_data: pretty_midi.PrettyMIDI, onset_times: np.ndarray, window_ms: float = 600):
-    """
-    DEPRECATED — no longer called in the main pipeline.
-
-    This filter was causing inner voices and legato notes to be silently dropped:
-    notes that start during the sustain of another note have no detectable onset
-    transient in librosa, so their distance to the nearest onset often exceeds
-    any reasonable window. basic-pitch's own onset_threshold already handles
-    artifact suppression, making this filter redundant and destructive.
-
-    Kept for reference / manual debugging only.
-    """
-    window_s = window_ms / 1000.0
-    for inst in midi_data.instruments:
-        filtered_notes = []
-        for note in inst.notes:
-            if len(onset_times) == 0:
-                filtered_notes.append(note)  # No onsets detected: keep all notes
-                continue
-            dist = np.min(np.abs(onset_times - note.start))
-            if dist <= window_s:
-                filtered_notes.append(note)
-        inst.notes = filtered_notes
-    return midi_data
-
 def transcribe_audio(
-    audio_path: Path, 
-    output_dir: Path, 
-    onset_threshold: float = 0.5,
-    frame_threshold: float = 0.3,
-    minimum_note_length: float = 100, # ms
+    audio_path: Path,
+    output_dir: Path,
+    # Legacy params kept for API compatibility — ignored by the new engine
+    onset_threshold: float = 0.3,
+    frame_threshold: float = 0.1,
+    minimum_note_length: float = 50,
     minimum_frequency: float = None,
     maximum_frequency: float = None,
     use_dynamic_threshold: bool = True
 ) -> Path:
+    """
+    Transcribe a polyphonic piano audio file to MIDI using the
+    piano-transcription-inference engine (Kong et al., 2020).
+
+    This model was trained on the MAESTRO and MAPS datasets and explicitly
+    detects both note onsets AND offsets, making it far superior to
+    basic-pitch for:
+      - Full polyphony (chords, multiple simultaneous voices)
+      - Sustained notes with natural piano decay (correct Note-Off timing)
+      - Synthesized piano timbres (Heartopia game instrument)
+
+    Parameters
+    ----------
+    audio_path : Path
+        Path to the input WAV/audio file.
+    output_dir : Path
+        Directory where output.mid will be written.
+    onset_threshold, frame_threshold, minimum_note_length,
+    minimum_frequency, maximum_frequency, use_dynamic_threshold :
+        Retained for backward-compatibility with existing callers in main.py.
+        The piano-transcription engine handles these internally.
+    """
     if not audio_path.exists():
         raise FileNotFoundError(f"Arquivo de áudio não encontrado: {audio_path}")
-    
-    print(f"[PROCESSOR] Transcribing audio with basic-pitch...")
-    print(f"[PROCESSOR] Parameters: onset={onset_threshold}, frame={frame_threshold}, dynamic_filter={use_dynamic_threshold}")
-    
+
+    print(f"[PROCESSOR] Transcribing with piano-transcription-inference (Kong 2020)...")
+    print(f"[PROCESSOR] Input: {audio_path}")
+
     try:
-        # predict returns (model_output, midi_data, note_events)
-        _, midi_data, _ = predict(
-            audio_path=str(audio_path),
-            onset_threshold=onset_threshold,
-            frame_threshold=frame_threshold,
-            minimum_note_length=minimum_note_length,
-            minimum_frequency=minimum_frequency,
-            maximum_frequency=maximum_frequency
+        import librosa
+        from piano_transcription_inference import PianoTranscription, sample_rate
+
+        # Load and resample audio to the model's expected 16 kHz using librosa,
+        # which uses libsndfile (already present in Docker) — avoids audioread issues.
+        print(f"[PROCESSOR] Loading audio at {sample_rate} Hz via librosa...")
+        audio, _ = librosa.load(str(audio_path), sr=sample_rate, mono=True)
+
+        # Instantiate transcriber (downloads checkpoint on first run, ~100 MB)
+        # device='auto' selects CUDA if available, otherwise CPU
+        transcriptor = PianoTranscription(device='auto', checkpoint_path=None)
+
+        output_midi = output_dir / "output.mid"
+
+        # transcribe() writes the MIDI file directly and returns metadata
+        result = transcriptor.transcribe(audio, str(output_midi))
+
+        note_count = sum(
+            1 for n in result.get('est_note_events', [])
+        ) if result else 0
+
+        print(f"[PROCESSOR] Transcription complete: {note_count} note events detected.")
+        print(f"[PROCESSOR] MIDI written to: {output_midi}")
+
+    except ImportError:
+        raise RuntimeError(
+            "piano-transcription-inference não está instalado.\n"
+            "Execute: pip install piano-transcription-inference torch torchvision"
         )
-        
-        if use_dynamic_threshold:
-            # Onset-based filtering has been disabled: it caused inner voices and
-            # legato notes to be dropped because they lack a strong attack transient.
-            # basic-pitch's onset_threshold=0.4 is already sufficient for noise control.
-            print("[PROCESSOR] Dynamic onset filter skipped — relying on basic-pitch onset_threshold.")
-            
     except Exception as e:
-        print(f"[PROCESSOR] Prediction error: {e}")
+        print(f"[PROCESSOR] Transcription error: {e}")
         print(f"[PROCESSOR] Traceback: {traceback.format_exc()}")
         raise
-    
-    if not midi_data:
-        raise RuntimeError("Falha ao gerar arquivo MIDI: nenhum dado retornado")
-    
-    output_midi = output_dir / "output.mid"
-    
-    # Calculate note count for logging
-    note_count = sum(len(inst.notes) for inst in midi_data.instruments)
-    print(f"[PROCESSOR] Writing MIDI file with {note_count} notes...")
-    midi_data.write(str(output_midi))
-    
+
     if not output_midi.exists():
-        raise RuntimeError("Falha ao salvar arquivo MIDI")
-    
-    print(f"[PROCESSOR] MIDI generated successfully: {output_midi} ({output_midi.stat().st_size} bytes)")
+        raise RuntimeError("Falha ao salvar arquivo MIDI após transcrição.")
+
+    # Verify and log actual MIDI note count
+    pm = pretty_midi.PrettyMIDI(str(output_midi))
+    actual_count = sum(len(inst.notes) for inst in pm.instruments)
+    print(f"[PROCESSOR] Verified MIDI note count: {actual_count} notes, "
+          f"{output_midi.stat().st_size} bytes")
+
     return output_midi
