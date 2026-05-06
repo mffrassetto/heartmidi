@@ -120,6 +120,45 @@ async def convert_audio(
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/fetch-audio")
+async def fetch_audio(
+    url: str = Form(...),
+    normalize: bool = Form(True)
+):
+    try:
+        if not url:
+            raise HTTPException(status_code=400, detail="URL é obrigatória")
+
+        job_id = str(uuid.uuid4())
+        source_dir = DATA_DIR / f"{job_id}_source"
+        source_dir.mkdir(exist_ok=True)
+
+        from app.downloader import download_audio, normalize_audio
+        downloaded = download_audio(url, source_dir)
+
+        normalized_path = None
+        if normalize:
+            normalized_path = DATA_DIR / f"{job_id}_normalized.wav"
+            try:
+                normalize_audio(downloaded, normalized_path)
+            except Exception as e:
+                print(f"[AVISO] FFmpeg não disponível, mantendo arquivo original: {e}")
+                normalized_path = None
+
+        response = {
+            "status": "downloaded",
+            "job_id": job_id,
+            "url": url,
+            "downloaded_file": str(downloaded.resolve()),
+            "normalized_file": str(normalized_path.resolve()) if normalized_path and normalized_path.exists() else None
+        }
+        return JSONResponse(response)
+    except Exception as e:
+        import traceback
+        print(f"[ERRO fetch-audio] {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
 async def process_audio(job_id: str):
     job = job_manager.get_job(job_id)
     if not job:
@@ -226,4 +265,34 @@ async def download_midi(job_id: str):
         path=str(file_path),
         media_type="audio/midi",
         filename=f"heartopia_{job_id}.mid"
+    )
+
+@app.get("/source/{job_id}")
+async def get_source_audio(job_id: str):
+    # Prefer normalized file if present
+    normalized = DATA_DIR / f"{job_id}_normalized.wav"
+    if normalized.exists():
+        return FileResponse(
+            path=str(normalized.resolve()),
+            media_type="audio/wav",
+            filename=f"{job_id}_normalized.wav"
+        )
+
+    # Fallback to raw downloaded container in source dir
+    source_dir = DATA_DIR / f"{job_id}_source"
+    cand = None
+    for name in ["audio.mp4", "audio.webm", "audio.m4a", "audio"]:
+        p = source_dir / name
+        if p.exists():
+            cand = p
+            break
+    if not cand:
+        raise HTTPException(status_code=404, detail="Arquivo de origem não encontrado")
+
+    # Guess media type
+    mt = "video/mp4" if cand.suffix == ".mp4" else ("video/webm" if cand.suffix == ".webm" else "application/octet-stream")
+    return FileResponse(
+        path=str(cand.resolve()),
+        media_type=mt,
+        filename=cand.name
     )
