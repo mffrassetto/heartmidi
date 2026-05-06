@@ -13,8 +13,6 @@ def download_audio(url: str, output_path: Path) -> Path:
         'format': 'best',
         'outtmpl': str(output_file) + '.%(ext)s',
         'nocheckcertificate': True,
-        'quiet': False,
-        'verbose': True,
     }
     
     if Path(COOKIES_FILE).exists():
