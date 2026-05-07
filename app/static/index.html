@@ -332,8 +332,9 @@
                 <p class="subtitle">Transforme suas ideias musicais em dados MIDI precisos instantaneamente. Suporta links do YouTube ou arquivos locais.</p>
 
                 <div class="tabs">
-                    <button class="tab active" data-tab="url">URL do YouTube</button>
-                    <button class="tab" data-tab="file">Arquivo Local</button>
+                    <button class="tab active" data-tab="url">URL para MIDI</button>
+                    <button class="tab" data-tab="file">Arquivo para MIDI</button>
+                    <button class="tab" data-tab="mp3">YouTube para MP3</button>
                 </div>
 
                 <!-- URL Input -->
@@ -353,19 +354,38 @@
                     </div>
                 </div>
 
-                <div class="input-group">
-                    <label>Instrumento Destino</label>
-                    <select id="instrument">
-                        <option value="piano">Piano</option>
-                        <option value="guitar">Guitar</option>
-                        <option value="drums">Drums</option>
-                        <option value="bass">Bass</option>
-                    </select>
+                <!-- MP3 Input -->
+                <div id="mp3-input" class="hidden">
+                    <div class="input-group">
+                        <label>Link do YouTube (MP3)</label>
+                        <input type="url" id="mp3-url" placeholder="https://youtube.com/watch?v=...">
+                    </div>
+                    <div class="input-group">
+                        <label>Qualidade do MP3</label>
+                        <select id="mp3-bitrate">
+                            <option value="128k">128 kbps</option>
+                            <option value="192k">192 kbps</option>
+                            <option value="256k">256 kbps</option>
+                            <option value="320k" selected>320 kbps</option>
+                        </select>
+                    </div>
                 </div>
 
-                <div class="checkbox-group">
-                    <input type="checkbox" id="apply-filters" checked>
-                    <label for="apply-filters">Filtros Heartopia Ativos</label>
+                <div id="midi-options">
+                    <div class="input-group">
+                        <label>Instrumento Destino</label>
+                        <select id="instrument">
+                            <option value="piano">Piano</option>
+                            <option value="guitar">Guitar</option>
+                            <option value="drums">Drums</option>
+                            <option value="bass">Bass</option>
+                        </select>
+                    </div>
+
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="apply-filters" checked>
+                        <label for="apply-filters">Filtros Heartopia Ativos</label>
+                    </div>
                 </div>
 
                 <button class="btn btn-primary" id="convert-btn">
@@ -430,8 +450,11 @@
         const resultView = document.getElementById('result-view');
         const newUploadBtn = document.getElementById('new-upload-btn');
         const downloadBtn = document.getElementById('download-btn');
+        const mp3Input = document.getElementById('mp3-input');
+        const midiOptions = document.getElementById('midi-options');
 
         let currentJobId = null;
+        let currentJobType = 'midi';
         let pollingInterval = null;
 
         // Check Health
@@ -462,9 +485,21 @@
                 if (tab.dataset.tab === 'url') {
                     urlInput.classList.remove('hidden');
                     fileInput.classList.add('hidden');
-                } else {
+                    mp3Input.classList.add('hidden');
+                    midiOptions.classList.remove('hidden');
+                    convertBtn.querySelector('span').textContent = 'Converter';
+                } else if (tab.dataset.tab === 'file') {
                     urlInput.classList.add('hidden');
                     fileInput.classList.remove('hidden');
+                    mp3Input.classList.add('hidden');
+                    midiOptions.classList.remove('hidden');
+                    convertBtn.querySelector('span').textContent = 'Converter';
+                } else {
+                    urlInput.classList.add('hidden');
+                    fileInput.classList.add('hidden');
+                    mp3Input.classList.remove('hidden');
+                    midiOptions.classList.add('hidden');
+                    convertBtn.querySelector('span').textContent = 'Baixar MP3';
                 }
             });
         });
@@ -485,6 +520,41 @@
         // Convert
         convertBtn.addEventListener('click', async () => {
             const activeTab = document.querySelector('.tab.active').dataset.tab;
+            
+            if (activeTab === 'mp3') {
+                const url = document.getElementById('mp3-url').value;
+                const bitrate = document.getElementById('mp3-bitrate').value;
+
+                if (!url) {
+                    alert('Por favor, insira a URL do YouTube');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('url', url);
+                formData.append('bitrate', bitrate);
+
+                convertBtn.disabled = true;
+                progress.classList.add('active');
+                updateProgress(10, 'Iniciando conversão...');
+
+                try {
+                    const res = await fetch(`${API_URL}/youtube-to-mp3`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await res.json();
+                    currentJobId = data.job_id;
+                    currentJobType = 'mp3';
+                    pollingInterval = setInterval(() => checkStatus(currentJobId), 2000);
+                } catch (err) {
+                    alert('Erro ao processar: ' + err.message);
+                    convertBtn.disabled = false;
+                    progress.classList.remove('active');
+                }
+                return;
+            }
+
             const url = document.getElementById('youtube-url').value;
             const file = audioFile.files[0];
             const instrument = document.getElementById('instrument').value;
@@ -517,6 +587,7 @@
                 });
                 const data = await res.json();
                 currentJobId = data.job_id;
+                currentJobType = 'midi';
 
                 pollingInterval = setInterval(() => checkStatus(currentJobId), 2000);
             } catch (err) {
@@ -553,9 +624,21 @@
         }
 
         function showResult(data) {
-            document.getElementById('file-name').textContent = data.file_name || 'audio_file.wav';
-            document.getElementById('duration').textContent = data.duration || '02:14';
-            document.getElementById('notes').textContent = data.note_count || '1,048';
+            const isMp3 = data.job_type === 'mp3';
+            
+            document.getElementById('file-name').textContent = data.file_name || (isMp3 ? 'youtube_audio.mp3' : 'audio_file.wav');
+            document.getElementById('duration').textContent = data.duration || (isMp3 ? 'N/A' : '02:14');
+            document.getElementById('notes').textContent = isMp3 ? 'N/A' : (data.note_count || '0');
+            
+            if (isMp3) {
+                document.getElementById('notes').parentElement.classList.add('hidden');
+                document.getElementById('duration').parentElement.classList.add('hidden');
+                downloadBtn.textContent = 'Download MP3';
+            } else {
+                document.getElementById('notes').parentElement.classList.remove('hidden');
+                document.getElementById('duration').parentElement.classList.remove('hidden');
+                downloadBtn.textContent = 'Download MIDI';
+            }
 
             converterView.classList.add('hidden');
             resultView.classList.remove('hidden');
@@ -571,7 +654,8 @@
 
         downloadBtn.addEventListener('click', () => {
             if (currentJobId) {
-                window.open(`${API_URL}/download/${currentJobId}`, '_blank');
+                const endpoint = currentJobType === 'mp3' ? 'download-mp3' : 'download';
+                window.open(`${API_URL}/${endpoint}/${currentJobId}`, '_blank');
             }
         });
     </script>

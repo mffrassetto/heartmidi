@@ -1,69 +1,66 @@
-# Sistema de Transcrição Musical para Heartopia (Audio-to-MIDI)
+# Documentação Técnica: Sistema de Transcrição Heartopia
 
-Este documento contém a arquitetura técnica e as instruções de sistema para a implementação de um conversor de áudio (YouTube/MP3) para o formato MIDI compatível com os instrumentos do jogo Heartopia.
+Este documento detalha a arquitetura, os algoritmos e as decisões de design do conversor Audio-to-MIDI otimizado para o jogo Heartopia.
 
-## 1. Escopo e Infraestrutura
-Desenvolver uma API para ingestão, transcrição e filtragem de áudio. O sistema é projetado para deploy via containers Docker em uma infraestrutura de VPS com arquitetura x86_64 (gerenciável via Portainer ou Coolify).
+## 1. Visão Geral da Arquitetura
 
-## 2. Stack Tecnológica
-*   **Linguagem Core:** Python 3.10+ (Ideal para bibliotecas de ML e DSP).
-*   **Framework API:** FastAPI (Alta performance e geração automática de docs).
-*   **Ingestão de Mídia:** `yt-dlp` (Para extração de áudio de URLs do YouTube).
-*   **Motor de Transcrição (IA):** `basic-pitch` (Modelo de rede neural do Spotify para conversão Audio-to-MIDI).
-*   **Processamento MIDI:** `mido` ou `pretty_midi` (Para aplicação dos filtros de escala e tempo).
-*   **Dependência de Sistema:** `ffmpeg` (Essencial para conversão e normalização de áudio).
+O sistema é construído como uma aplicação distribuída em camadas:
 
-## 3. Pipeline de Processamento
+-   **Interface (Frontend)**: Dashboard em HTML5/Vanilla JS integrado à FastAPI.
+-   **API (Backend)**: FastAPI gerenciando jobs assíncronos via `asyncio.create_task`.
+-   **Motor de IA (Inference)**: `piano-transcription-inference` baseado no modelo de Kong et al. (2020).
+-   **Processamento de Sinal (DSP)**: `librosa` e `ffmpeg` para normalização.
+-   **Formatador MIDI**: Lógica customizada usando `mido` e `pretty_midi` para filtros de compatibilidade.
 
-### Etapa A: Ingestão e Normalização
-1.  O endpoint da API recebe um arquivo de áudio (`.mp3`, `.wav`) ou uma URL.
-2.  Caso seja URL, utilizar `yt-dlp` para baixar a stream de áudio.
-3.  Processar o áudio via `ffmpeg` convertendo-o estritamente para **mono** e taxa de amostragem de **22050 Hz**.
+---
 
-### Etapa B: Inferência Neural
-1.  Carregar o áudio normalizado no motor `basic-pitch`.
-2.  Gerar o mapeamento inicial de frequências para eventos MIDI (Pitch, Onset, Offset, Velocity).
+## 2. Pipeline de Processamento (Step-by-Step)
 
-### Etapa C: Filtros de Compatibilidade Heartopia (Crítico)
-Instrumentos in-game não suportam arquivos MIDI densos ou com sobreposição complexa. O script de manipulação MIDI (`mido`) deve obrigatoriamente aplicar:
-1.  **Quantização (Grid Snapping):** Arredondar o tempo de início das notas para o compasso mais próximo (1/16 ou 1/8) para evitar que o motor do jogo "atropele" os sons.
-2.  **Limpeza de Ruído:** Remover qualquer evento de nota com duração inferior a 50ms (geralmente falsos positivos da transcrição).
-3.  **Achatamento de Melodia:** Em momentos de polifonia excessiva, isolar a melodia mantendo apenas a nota mais aguda ou a de maior *velocity*, removendo o excesso de notas simultâneas.
-4.  **Transposição Automática:** Mapear e mover todas as notas resultantes para garantir que fiquem estritamente dentro das oitavas suportadas pelo instrumento do jogo (ex: C3 a C5).
+### Etapa 1: Ingestão de Mídia (`downloader.py`)
+-   Utiliza `yt-dlp` para extrair áudio de links externos.
+-   Suporta cookies para acesso a conteúdos restritos.
+-   Normaliza o áudio para WAV, 16.000 Hz, Mono (requisito do modelo de IA).
 
-## 4. Estrutura do Projeto
+### Etapa 2: Transcrição Neural (`processor.py`)
+-   **Modelo**: High-resolution Piano Transcription with Onset and Offset Detection.
+-   **Vantagem**: Ao contrário de modelos mais simples (como Basic-Pitch), este modelo detecta com precisão o final da nota (offset), o que é vital para instrumentos com sustain em Heartopia.
+-   **Patch de Compatibilidade**: Implementa um monkey-patch no `torch.load` para garantir compatibilidade com versões recentes do PyTorch e evitar erros de `map_location`.
+
+### Etapa 3: Filtros de Compatibilidade (`formatter.py`)
+Para que o MIDI funcione perfeitamente no jogo, aplicamos:
+
+1.  **Limpeza de Notas Curtas**: Notas < 30ms são removidas como ruído de transcrição.
+2.  **Limite de Polifonia**: O motor do jogo suporta polifonia limitada em passagens densas. Limitamos a 6 notas simultâneas, priorizando as notas com maior *velocity* (intensidade).
+3.  **Clamp de Escala (22 teclas)**: O piano de Heartopia possui um range fixo de 22 notas em Dó Maior (C4 a C7). Qualquer nota fora desse range é transposta por oitavas até entrar no limite ou removida se for excessivamente fora.
+4.  **Quantização (Opcional)**: Se ativado, o sistema detecta o BPM do áudio via `analyzer.py` e ajusta os onsets para o grid (1/16, 1/8, etc.) com força de 50%, mantendo o "feel" humano mas corrigindo imprecisões.
+
+---
+
+## 3. Gestão de Jobs e Persistência
+
+Os jobs são armazenados em `data/` como arquivos JSON (`{job_id}.job.json`). Isso permite:
+-   Resiliência a reinicializações do servidor.
+-   Monitoramento de progresso em tempo real via endpoint `/status/{job_id}`.
+-   Download posterior de resultados.
+
+---
+
+## 4. Estrutura de Arquivos
+
 ```text
-/heartopia-converter
-├── app/
-│   ├── main.py            # Rotas da FastAPI (/convert)
-│   ├── processor.py       # Lógica do Basic Pitch
-│   ├── formatter.py       # Algoritmos do Filtro Heartopia (Mido)
-│   └── downloader.py      # Lógica do yt-dlp
-├── data/                  # Volume temporário para processamento (limpeza automática)
-├── requirements.txt       # Dependências Python
-└── Dockerfile             # Setup do ambiente x86_64 com FFmpeg e Python
+app/
+├── main.py            # API, Rotas e Orquestração de Jobs
+├── downloader.py      # Download (yt-dlp) e Normalização (FFmpeg)
+├── processor.py       # Inferência de IA (Kong 2020)
+├── formatter.py       # Pós-processamento e Filtros MIDI
+├── analyzer.py        # Detecção de BPM e análise rítmica
+└── static/            # Frontend (HTML/JS/CSS)
+```
 
-##6. Dependências Adicionais Necessárias
+---
 
-### Python (requirements.txt)
-Além das bibliotecas principais, incluir:
-- `torch` - Necessário para o basic-pitch (PyTorch)
-- `numpy` - Dependência fundamental para ML e DSP
-- `librosa` - Opcional, para manipulação avançada de áudio
+## 5. Manutenção e Debugging
 
-### Sistema (Dockerfile)
-O basic-pitch requer bibliotecas nativas adicionais:
-- `libsndfile1` - Para leitura de arquivos de áudio
-- `libasound2-dev` - Para áudio ALSA (opcional)
-- Verificar compatibilidade do basic-pitch com Python 3.10+
-
-### Notas sobre Compatibilidade
-- O `basic-pitch` pode ter conflitos de versão com bibliotecas Python recentes - testar versões específicas
-- O `yt-dlp` pode precisar de dependências extras para alguns formatos de áudio
-- Recomenda-se usar virtual environment para isolar dependências
-
-##7. Instruções de Setup para o Agente de Código
-Escrever o Dockerfile utilizando python:3.10-slim.
-Adicionar RUN apt-get update && apt-get install -y ffmpeg libsndfile1 no Dockerfile.
-No requirements.txt, incluir: basic-pitch, mido, yt-dlp, fastapi, uvicorn, python-multipart, torch, numpy.
-Implementar o endpoint principal e expor a API na porta 8000.
+-   **Logs**: O sistema gera logs detalhados no console e pode ser configurado para persistir em `server.log`.
+-   **Limpeza**: Recomenda-se um script de limpeza periódica para a pasta `data/` para remover arquivos temporários antigos.
+-   **Memória**: O modelo de IA consome aproximadamente 1.5GB de RAM durante a inferência.

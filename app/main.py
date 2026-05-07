@@ -55,7 +55,8 @@ class JobManager:
             print(f"[AVISO] Não foi possível persistir job {job_id}: {e}")
 
     def create_job(self, source: str, url: Optional[str] = None, file_name: Optional[str] = None, 
-                 instrument: str = "piano", apply_filters: bool = True, quantize: str = "1/16") -> str:
+                 instrument: str = "piano", apply_filters: bool = True, quantize: str = "1/16",
+                 job_type: str = "midi", bitrate: str = "320k") -> str:
         job_id = str(uuid.uuid4())
         self.jobs[job_id] = {
             "status": "processing",
@@ -67,6 +68,8 @@ class JobManager:
             "instrument": instrument,
             "apply_filters": apply_filters,
             "quantize": quantize,
+            "job_type": job_type,
+            "bitrate": bitrate,
             "output_file": None,
             "error": None,
             "note_count": 0,
@@ -150,6 +153,57 @@ async def convert_audio(
         print(f"[ERRO] {str(e)}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/youtube-to-mp3")
+async def youtube_to_mp3(
+    url: str = Form(...),
+    bitrate: str = Form("320k")
+):
+    try:
+        if not url:
+            raise HTTPException(status_code=400, detail="URL é obrigatória")
+        
+        job_id = job_manager.create_job(source="url", url=url, file_name=url, job_type="mp3", bitrate=bitrate)
+        
+        asyncio.create_task(process_mp3_task(job_id))
+        
+        return {"status": "processing", "job_id": job_id, "message": "Conversão para MP3 iniciada"}
+        
+    except Exception as e:
+        import traceback
+        print(f"[ERRO] {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def process_mp3_task(job_id: str):
+    job = job_manager.get_job(job_id)
+    if not job:
+        return
+    
+    try:
+        job_manager.update_job(job_id, progress=20, stage="Baixando do YouTube...")
+        from app.downloader import download_youtube_mp3
+        
+        output_dir = DATA_DIR / f"{job_id}_mp3"
+        output_dir.mkdir(exist_ok=True)
+        
+        # Mapping bitrates if they are just numbers
+        bitrate = job.get("bitrate", "320k")
+        if bitrate.isdigit():
+            bitrate = f"{bitrate}k"
+            
+        job_manager.update_job(job_id, progress=50, stage=f"Convertendo para MP3 ({bitrate})...")
+        
+        mp3_path = download_youtube_mp3(job["url"], output_dir, bitrate=bitrate)
+        
+        job_manager.update_job(job_id, progress=100, stage="Concluído!", 
+                             status="completed", output_file=str(mp3_path.resolve()))
+        
+    except Exception as e:
+        import traceback
+        print(f"[ERRO no job MP3 {job_id}] {str(e)}")
+        traceback.print_exc()
+        job_manager.update_job(job_id, status="error", error=str(e))
 
 @app.post("/fetch-audio")
 async def fetch_audio(
@@ -322,6 +376,29 @@ async def download_midi(job_id: str):
         path=str(file_path),
         media_type="audio/midi",
         filename=f"heartopia_{job_id}.mid"
+    )
+
+@app.get("/download-mp3/{job_id}")
+async def download_mp3(job_id: str):
+    job = job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job não encontrado")
+    
+    if job.get("status") != "completed":
+        raise HTTPException(status_code=400, detail="Processamento não concluído")
+    
+    output_file = job.get("output_file")
+    if not output_file:
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado")
+    
+    file_path = Path(output_file)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado")
+    
+    return FileResponse(
+        path=str(file_path),
+        media_type="audio/mpeg",
+        filename=f"heartopia_audio_{job_id}.mp3"
     )
 
 @app.get("/source/{job_id}")

@@ -65,3 +65,50 @@ def normalize_audio(input_path: Path, output_path: Path, sample_rate: int = 2205
         subprocess.run(cmd_simple, check=True)
     
     return output_path
+
+def download_youtube_mp3(url: str, output_path: Path, bitrate: str = "320k") -> Path:
+    """
+    Downloads audio from YouTube and converts it to MP3 with the specified bitrate.
+    """
+    output_path.mkdir(parents=True, exist_ok=True)
+    temp_file = output_path / "temp_audio"
+    final_file = output_path / "audio.mp3"
+    
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': str(temp_file) + '.%(ext)s',
+        'nocheckcertificate': True,
+        'js_runtimes': {'node': {}},
+    }
+    
+    if Path(COOKIES_FILE).exists():
+        ydl_opts['cookiefile'] = COOKIES_FILE
+    
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
+    
+    # Find the downloaded file
+    candidates = list(output_path.glob("temp_audio.*"))
+    if not candidates:
+        raise FileNotFoundError(f"Falha ao baixar áudio de {url}")
+    
+    downloaded_file = candidates[0]
+    
+    # Convert to MP3 using ffmpeg
+    cmd = [
+        'ffmpeg', '-y', '-i', str(downloaded_file),
+        '-ab', bitrate,
+        str(final_file)
+    ]
+    
+    print(f"[CONVERT] Converting to MP3 with bitrate {bitrate}")
+    result = subprocess.run(cmd, capture_output=True)
+    
+    # Clean up temp file
+    if downloaded_file.exists():
+        downloaded_file.unlink()
+        
+    if result.returncode != 0:
+        raise Exception(f"Erro na conversão para MP3: {result.stderr.decode()}")
+        
+    return final_file

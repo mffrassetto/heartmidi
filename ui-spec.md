@@ -1,101 +1,43 @@
-# Heartopia Audio-to-MIDI Converter - Design Spec
+# Heartopia Audio-to-MIDI Converter - Interface
 
-## Visão Geral
-- **Tipo**: Web Application (Dashboard)
-- **Estilo**: Dark mode, moderno, musician-friendly
-- **Stack**: HTML + Tailwind CSS
+A interface do sistema foi projetada para ser simples, intuitiva e focada em produtividade para músicos e jogadores.
 
----
+## 🎨 Design System
 
-## Tela 1: Homepage / Converter
-
-### Layout
-- Container centralizado, max-width 800px
-- Fundo: gradient escuro (#0f0f1a → #1a1a2e)
-
-### Componentes
-
-**Header**
-- Logo "Heartopia MIDI" no topo (esquerda)
-- Link "Histórico" à direita
-
-**Hero Section**
-- Título: "Converta áudio para MIDI"
-- Subtítulo: "Transformemusicas do YouTube ou arquivos MP3/WAV em arquivos MIDI compatíveis com Heartopia"
-
-**Input Section**
-- Campo de URL do YouTube (input text)
-- OU botão "Selecionar arquivo" para upload
-- Radio buttons: "URL do YouTube" / "Arquivo local"
-
-**Configurações (opcional collapse)**
-- Dropdown: Instrumento destino (Piano, Guitar, Drums, etc.)
-- Checkbox: "Aplicar filtros de compatibilidade Heartopia" (default: checked)
-
-**Botão Principal**
-- "Converter" - grande, verde (#22c55e)
-- Animated gradient on hover
-
-**Status/Progress**
-- Barra de progresso animadapendente estágio:
-  1. "Baixando áudio..."
-  2. "Processando transcrição neural..."
-  3. "Aplicando filtros..."
-  4. "Finalizando..."
+-   **Estilo**: Glassmorphism com Dark Mode.
+-   **Cores**:
+    -   Fundo: Midnight Blue (#0f0f1a).
+    -   Destaque: Emerald Green (#22c55e).
+    -   Ações Secundárias: Royal Purple (#8b5cf6).
+-   **Interatividade**: Transições suaves, estados de hover animados e feedback visual de progresso.
 
 ---
 
-## Tela 2: Resultado / Download
+## 📱 Componentes da Interface
 
-### Layout
-- Similar à homepage
+### 1. Painel de Ingestão
+-   **URL do YouTube**: Suporte a links diretos.
+-   **Upload de Arquivos**: Suporte a MP3, WAV e M4A.
+-   **Configurações Rápidas**:
+    -   Ativar/Desativar Filtros Heartopia.
+    -   Seleção de Quantização (Nenhuma, 1/8, 1/16, 1/32).
 
-### Componentes
+### 2. Monitor de Progresso
+-   Exibição em tempo real das etapas:
+    -   📥 Baixando áudio...
+    -   🧠 Transcrevendo com IA...
+    -   🎼 Aplicando filtros...
+    -   ✅ Concluído!
 
-**Card de Resultado**
-- Nome do arquivo original
-- Duração convertida
-- Número de notas detectadas
-
-**Preview MIDI**
-- Visualização简易da melodia (piano roll simplificado)
-- Ou lista de primeiras notas
-
-**Ações**
-- Botão "Download MIDI" - verde
-- Botão "Novo Upload" - outline
-
----
-
-## Tela 3: Histórico
-
-### Layout
-- Tabela ou cards
-- Max-width 1000px
-
-### Componentes
-- Lista de conversões anteriores
-- Columns: Data, Arquivo, Duração, Status, Ação
-- Botão para re-download
+### 3. Painel de Resultado
+-   **Estatísticas**: Contagem de notas e duração do áudio.
+-   **Download**: Botão direto para o arquivo `.mid` finalizado.
+-   **Preview**: (Funcionalidade de visualização de piano roll em desenvolvimento).
 
 ---
 
-## Cores e Estilo
+## 🛠️ Tecnologias Utilizadas
 
-### Paleta
-- Primary: #22c55e (green-500)
-- Background: #0f0f1a (dark)
-- Surface: #1a1a2e (card bg)
-- Text: #fafafa (white)
-- Muted: #a1a1aa (gray-400)
-- Accent: #8b5cf6 (purple-500)
-
-### Tipografia
-- Font: Inter ou system-ui
-- Headings: Bold
-- Body: Regular
-
-### Efeitos
-- Border radius: 12px
-- Box shadows sutis
-- Hover: scale(1.02) em cards
+-   **Frontend**: HTML5 Semântico, CSS3 (Vanilla + Custom Properties), Javascript (Fetch API).
+-   **Backend Rendering**: FastAPI StaticFiles.
+-   **Assets**: Google Fonts (Inter), Feather Icons.
