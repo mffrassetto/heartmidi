@@ -79,6 +79,8 @@ def download_youtube_mp3(url: str, output_path: Path, bitrate: str = "320k") -> 
         'outtmpl': str(temp_file) + '.%(ext)s',
         'nocheckcertificate': True,
         'js_runtimes': {'node': {}},
+        'remote_components': ['ejs:github'],
+        'noplaylist': True,
     }
     
     if Path(COOKIES_FILE).exists():
