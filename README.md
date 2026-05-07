@@ -1,6 +1,6 @@
-# Heartopia MIDI Converter 🎹
+# heartmid 🎹
 
-Transforme músicas do YouTube ou arquivos locais em arquivos MIDI de alta fidelidade, otimizados especificamente para o motor musical do jogo **Heartopia**.
+Transforme músicas do YouTube ou arquivos locais em arquivos MIDI de alta fidelidade, compatíveis com o jogo **Heartopia**.
 
 O sistema utiliza o estado da arte em transcrição polifônica de piano (Kong et al., 2020) e aplica filtros inteligentes para garantir que o resultado seja 100% compatível com os instrumentos in-game.
 
@@ -11,11 +11,11 @@ O sistema utiliza o estado da arte em transcrição polifônica de piano (Kong e
 - **Transcrição de Alta Precisão**: Motor neural `piano-transcription-inference` treinado em datasets MAESTRO/MAPS, capaz de detectar onsets, offsets e velocidades precisas.
 - **Suporte a YouTube**: Basta colar o link para baixar e converter.
 - **Filtros Heartopia (Smart Engine)**:
-    - **Escala Compatível**: Clamping automático para a escala de 22 teclas (Dó Maior, C4 a C7).
-    - **Gestão de Polifonia**: Limite inteligente de até 6 notas simultâneas para evitar sobrecarga no motor do jogo.
-    - **Limpeza de Ruído**: Remoção de artefatos de transcrição menores que 30ms.
-    - **Quantização Opcional**: Ajuste rítmico (Grid Snapping) com detecção automática de BPM.
-- **Interface Web Moderna**: Dashboard responsivo para gerenciar conversões, visualizar progresso e baixar resultados.
+    - **Escala de 22 Teclas**: Clamping automático para Dó Maior (C4 a C7).
+    - **Gestão de Polifonia**: Limite inteligente de até 6 notas simultâneas.
+    - **Limpeza de Ruído**: Remoção de artefatos menores que 30ms.
+    - **Quantização Opcional**: Ajuste rítmico com detecção automática de BPM.
+- **Interface Web Moderna**: Dashboard responsivo para gerenciar conversões.
 
 ---
 
@@ -75,6 +75,7 @@ O pipeline de processamento segue estas etapas:
 
 ---
 
-## 📝 Licença
+## 📝 Créditos e Licença
 
-Desenvolvido para a comunidade de Heartopia.
+Desenvolvido por **Maria Fernanda Frassetto - MFF Web Agency**.
+Heartopia é uma marca registrada de seus respectivos proprietários. Este aplicativo fornece ferramentas de compatibilidade e não possui vínculo oficial.

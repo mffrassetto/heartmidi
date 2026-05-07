@@ -24,7 +24,7 @@ def transcribe_audio(
     basic-pitch for:
       - Full polyphony (chords, multiple simultaneous voices)
       - Sustained notes with natural piano decay (correct Note-Off timing)
-      - Synthesized piano timbres (Heartopia game instrument)
+      - Synthesized piano timbres (Game instruments)
 
     Parameters
     ----------

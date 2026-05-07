@@ -1,6 +1,7 @@
-# Documentação Técnica: Sistema de Transcrição Heartopia
+# Documentação Técnica: heartmid
+**Desenvolvedor: Maria Fernanda Frassetto - MFF Web Agency**
 
-Este documento detalha a arquitetura, os algoritmos e as decisões de design do conversor Audio-to-MIDI otimizado para o jogo Heartopia.
+Este documento detalha a arquitetura, os algoritmos e as decisões de design do conversor Audio-to-MIDI **heartmid**, compatível com o jogo Heartopia.
 
 ## 1. Visão Geral da Arquitetura
 
@@ -26,13 +27,13 @@ O sistema é construído como uma aplicação distribuída em camadas:
 -   **Vantagem**: Ao contrário de modelos mais simples (como Basic-Pitch), este modelo detecta com precisão o final da nota (offset), o que é vital para instrumentos com sustain em Heartopia.
 -   **Patch de Compatibilidade**: Implementa um monkey-patch no `torch.load` para garantir compatibilidade com versões recentes do PyTorch e evitar erros de `map_location`.
 
-### Etapa 3: Filtros de Compatibilidade (`formatter.py`)
+### Etapa 3: Filtros Heartopia (`formatter.py`)
 Para que o MIDI funcione perfeitamente no jogo, aplicamos:
 
 1.  **Limpeza de Notas Curtas**: Notas < 30ms são removidas como ruído de transcrição.
-2.  **Limite de Polifonia**: O motor do jogo suporta polifonia limitada em passagens densas. Limitamos a 6 notas simultâneas, priorizando as notas com maior *velocity* (intensidade).
-3.  **Clamp de Escala (22 teclas)**: O piano de Heartopia possui um range fixo de 22 notas em Dó Maior (C4 a C7). Qualquer nota fora desse range é transposta por oitavas até entrar no limite ou removida se for excessivamente fora.
-4.  **Quantização (Opcional)**: Se ativado, o sistema detecta o BPM do áudio via `analyzer.py` e ajusta os onsets para o grid (1/16, 1/8, etc.) com força de 50%, mantendo o "feel" humano mas corrigindo imprecisões.
+2.  **Limite de Polifonia**: O motor de destino suporta polifonia limitada em passagens densas. Limitamos a 6 notas simultâneas, priorizando as notas com maior *velocity* (intensidade).
+3.  **Clamp de Escala (22 teclas)**: O layout de 22 teclas (comum em Heartopia) possui um range fixo em Dó Maior (C4 a C7). Qualquer nota fora desse range é transposta por oitavas até entrar no limite ou removida se for excessivamente fora.
+4.  **Quantização (Opcional)**: Se ativado, o sistema detecta o BPM do áudio e ajusta os onsets para o grid (1/16, 1/8, etc.) com força de 50%, mantendo o "feel" humano mas corrigindo imprecisões.
 
 ---
 

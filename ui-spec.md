@@ -1,4 +1,4 @@
-# Heartopia Audio-to-MIDI Converter - Interface
+# heartmid - Interface Definition
 
 A interface do sistema foi projetada para ser simples, intuitiva e focada em produtividade para músicos e jogadores.
 

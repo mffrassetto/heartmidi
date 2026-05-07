@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import aiofiles
 
-app = FastAPI(title="Heartopia MIDI Converter", version="1.0.0")
+app = FastAPI(title="heartmid", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -313,7 +313,7 @@ async def process_audio(job_id: str):
             # The game piano has sustain, so we keep notes as short as 30ms.
             clean_short_notes(midi_path, midi_path, min_duration_ms=30)
 
-            # Step 2: Limit polyphony — Heartopia supports up to 6 simultaneous notes
+            # Step 2: Limit polyphony — 6 simultaneous notes (compatible with Heartopia)
             # in rich chord passages. We skip aggressive deduplication here because
             # the new engine already handles same-pitch overlaps internally.
             limit_polyphony(midi_path, midi_path, max_simultaneous=6)
@@ -375,7 +375,7 @@ async def download_midi(job_id: str):
     return FileResponse(
         path=str(file_path),
         media_type="audio/midi",
-        filename=f"heartopia_{job_id}.mid"
+        filename=f"heartmid_{job_id}.mid"
     )
 
 @app.get("/download-mp3/{job_id}")
@@ -398,7 +398,7 @@ async def download_mp3(job_id: str):
     return FileResponse(
         path=str(file_path),
         media_type="audio/mpeg",
-        filename=f"heartopia_audio_{job_id}.mp3"
+        filename=f"heartmid_audio_{job_id}.mp3"
     )
 
 @app.get("/source/{job_id}")
