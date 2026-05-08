@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>heartmid</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 
     <style>
         * {
@@ -340,6 +341,10 @@
                     <label>Senha</label>
                     <input type="password" id="auth-password" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: var(--surface-dim); color: white; border: 1px solid var(--border-subtle);">
                 </div>
+                <!-- Turnstile Widget -->
+                <div id="captcha-container" style="margin-top: 1rem; display: flex; justify-content: center;">
+                    <div class="cf-turnstile" data-sitekey="1x00000000000000000000AA"></div>
+                </div>
                 <button class="btn btn-primary" id="auth-btn" style="margin-top: 1rem;">Entrar</button>
                 <p style="margin-top: 1.5rem; text-align: center; cursor: pointer; color: var(--primary); font-size: 0.875rem;" id="toggle-auth">Não tem conta? Cadastre-se</p>
             </div>
@@ -537,9 +542,21 @@
         document.getElementById('auth-btn').addEventListener('click', async () => {
             const email = document.getElementById('auth-email').value;
             const password = document.getElementById('auth-password').value;
+            const captchaToken = turnstile.getResponse();
+
+            if (!captchaToken && isSignUp) {
+                alert('Por favor, complete o CAPTCHA.');
+                return;
+            }
             
             if (isSignUp) {
-                const { error } = await _supabase.auth.signUp({ email, password });
+                const { error } = await _supabase.auth.signUp({ 
+                    email, 
+                    password,
+                    options: {
+                        captchaToken: captchaToken
+                    }
+                });
                 if (error) alert(error.message);
                 else alert('Verifique seu e-mail para confirmar o cadastro!');
             } else {
