@@ -127,6 +127,13 @@ async def root():
 async def health():
     return {"status": "healthy"}
 
+@app.get("/config")
+async def get_config():
+    return {
+        "supabase_url": os.getenv("SUPABASE_URL"),
+        "supabase_anon_key": os.getenv("SUPABASE_ANON_KEY")
+    }
+
 @app.post("/convert")
 async def convert_audio(
     source: str = Form(...),

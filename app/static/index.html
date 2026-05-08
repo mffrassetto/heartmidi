@@ -474,11 +474,30 @@
     </div>
 
     <script>
-        const SUPABASE_URL = 'https://nwffpqopzpvlgicwlfdv.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im53ZmZwcW9wenB2bGdpY3dsZmR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxOTkzOTMsImV4cCI6MjA5Mzc3NTM5M30.d4glVvcB4YItSNdO9ctWtRIV-Iyc2lfOr5qD6-Kvdmo';
+        let SUPABASE_URL = '';
+        let SUPABASE_ANON_KEY = '';
+        let _supabase = null;
         
-        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         const API_URL = '';
+
+        async function initSupabase() {
+            try {
+                const res = await fetch('/config');
+                const config = await res.json();
+                
+                if (config.supabase_url && config.supabase_anon_key) {
+                    SUPABASE_URL = config.supabase_url;
+                    SUPABASE_ANON_KEY = config.supabase_anon_key;
+                    _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                    console.log("[CONFIG] Supabase initialized from server env");
+                    checkSession();
+                } else {
+                    console.error("[CONFIG] Chaves do Supabase não encontradas no servidor.");
+                }
+            } catch (err) {
+                console.error("[CONFIG] Erro ao buscar configuração:", err);
+            }
+        }
 
         const tabs = document.querySelectorAll('.tab');
         const urlInput = document.getElementById('url-input');
@@ -507,10 +526,12 @@
 
         // Auth Logic
         async function checkSession() {
+            if (!_supabase) return;
             const { data } = await _supabase.auth.getSession();
             session = data.session;
             updateUI();
         }
+      }
 
         function updateUI() {
             if (session) {
@@ -633,7 +654,8 @@
             converterView.classList.remove('hidden');
         };
 
-        checkSession();
+        initSupabase();
+
 
         // Check Health
         async function checkHealth() {
