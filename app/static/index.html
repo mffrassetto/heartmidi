@@ -740,6 +740,55 @@
                 </div>
             </div>
         </main>
+        
+        <!-- Editor View -->
+        <main id="editor-view" class="hidden">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <div>
+                        <h1>Editor MIDI</h1>
+                        <p class="subtitle">Ajuste as notas, tempo e duração da sua trilha.</p>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-outline" style="width: auto; padding: 0.5rem 1rem;" onclick="saveAndExitEditor()">Salvar e Sair</button>
+                        <button class="btn btn-primary" style="width: auto; padding: 0.5rem 1rem;" onclick="closeEditor()">Voltar</button>
+                    </div>
+                </div>
+
+                <div class="editor-toolbar">
+                    <button class="tool-btn active" id="tool-select" title="Selecionar (S)">Select</button>
+                    <button class="tool-btn" id="tool-pencil" title="Lápis (P)">Pencil</button>
+                    <button class="tool-btn" id="tool-eraser" title="Borracha (E)">Eraser</button>
+                    <div style="flex-grow: 1;"></div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--muted); font-size: 0.875rem;">
+                        <span>Snap:</span>
+                        <select id="editor-snap" style="width: auto; padding: 0.25rem; background: var(--surface-dim); color: white; border: 1px solid var(--border-subtle); border-radius: 4px;">
+                            <option value="0">Off</option>
+                            <option value="1/4">1/4</option>
+                            <option value="1/8">1/8</option>
+                            <option value="1/16" selected>1/16</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="piano-roll-container" id="piano-roll-container">
+                    <div class="piano-keys" id="piano-keys">
+                        <!-- Keys will be injected here -->
+                    </div>
+                    <div class="editor-canvas-container" id="canvas-scroll-container">
+                        <canvas id="editor-canvas"></canvas>
+                    </div>
+                </div>
+
+                <div class="player-controls" style="margin-top: 1.5rem;">
+                    <button class="play-btn" id="editor-play-btn">▶</button>
+                    <div class="progress-slider" id="editor-progress-slider">
+                        <div class="progress-slider-fill" id="editor-progress-fill"></div>
+                    </div>
+                    <span id="editor-player-time" style="font-family: monospace; font-size: 0.875rem;">00:00 / 00:00</span>
+                </div>
+            </div>
+        </main>
 
         <footer style="text-align: center; padding: 2rem; color: var(--muted); font-size: 0.875rem;">
             <p>© 2024 Maria Fernanda Frassetto - MFF Web Agency. MIDI compatibility for Heartopia.</p>
@@ -1447,8 +1496,17 @@
                     this.isPlaying = true;
                     document.getElementById('editor-play-btn').textContent = '⏸';
                     
-                    // Agenda notas atuais
-                    const sampler = window.mainPlayer.sampler; // Reutiliza sampler
+                    // Garante que temos um sampler para tocar
+                    if (!this.sampler) {
+                        this.sampler = new Tone.Sampler({
+                            urls: { C4: "C4.mp3" },
+                            baseUrl: "https://tonejs.github.io/audio/salamander/",
+                            release: 1
+                        }).toDestination();
+                        await Tone.loaded();
+                    }
+
+                    const sampler = this.sampler;
                     this.notes.forEach(note => {
                         Tone.Transport.schedule(time => {
                             sampler.triggerAttackRelease(note.name, note.duration, time, note.velocity);
@@ -1550,18 +1608,35 @@
         }
 
         async function openEditor(jobId) {
-            resultView.classList.add('hidden');
-            editorView.classList.remove('hidden');
+            if (!editorView) {
+                console.error("Editor view element not found!");
+                return;
+            }
             
-            if (!editorInstance) editorInstance = new HeartmidEditor();
-            
-            const res = await fetchWithAuth(`${API_URL}/midi-data/${jobId}`);
-            const data = await res.json();
-            await editorInstance.loadMidi(data.data);
-            
-            // Centraliza o scroll no meio (C4)
-            const container = document.getElementById('canvas-scroll-container');
-            container.scrollTop = (127 - 60) * editorInstance.noteHeight - 200;
+            try {
+                const res = await fetchWithAuth(`${API_URL}/midi-data/${jobId}`);
+                if (!res.ok) {
+                    if (res.status === 404) alert("Erro: O arquivo MIDI não foi encontrado no servidor. Tente converter novamente.");
+                    else alert("Erro ao carregar dados para o editor.");
+                    return;
+                }
+                const data = await res.json();
+
+                resultView.classList.add('hidden');
+                historyView.classList.add('hidden');
+                converterView.classList.add('hidden');
+                editorView.classList.remove('hidden');
+                
+                if (!editorInstance) editorInstance = new HeartmidEditor();
+                await editorInstance.loadMidi(data.data);
+                
+                // Centraliza o scroll no meio (C4)
+                const container = document.getElementById('canvas-scroll-container');
+                if (container) container.scrollTop = (127 - 60) * editorInstance.noteHeight - 200;
+            } catch (err) {
+                console.error("Editor error:", err);
+                alert("Falha ao abrir o editor: " + err.message);
+            }
         }
 
         function closeEditor() {
