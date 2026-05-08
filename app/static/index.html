@@ -6,6 +6,9 @@
     <title>heartmid</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    <!-- Bibliotecas para o Player MIDI -->
+    <script src="https://unpkg.com/tone"></script>
+    <script src="https://unpkg.com/@tonejs/midi"></script>
 
     <style>
         * {
@@ -312,6 +315,136 @@
             background: #22c55e;
             box-shadow: 0 0 8px var(--primary);
         }
+
+        /* Player MIDI Styles */
+        .midi-player-container {
+            background: var(--surface-dim);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-top: 1.5rem;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .player-controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .play-btn {
+            background: var(--primary-container);
+            color: var(--on-primary);
+            border: none;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .progress-slider {
+            flex-grow: 1;
+            height: 6px;
+            background: var(--surface);
+            border-radius: 3px;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .progress-slider-fill {
+            height: 100%;
+            background: var(--primary);
+            width: 0%;
+            border-radius: 3px;
+        }
+
+        /* Note Map Table */
+        .note-map-container {
+            margin-top: 1.5rem;
+            overflow-x: auto;
+        }
+
+        .note-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        .note-table th, .note-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .note-table th {
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .page-btn {
+            padding: 0.25rem 0.5rem;
+            border: 1px solid var(--border-subtle);
+            background: transparent;
+            color: var(--on-surface);
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .page-btn.active {
+            background: var(--primary-container);
+            color: var(--on-primary);
+        }
+
+        /* History Enhancements */
+        .history-card {
+            background: var(--surface-dim);
+            padding: 1rem;
+            border-radius: 0.75rem;
+            border: 1px solid var(--border-subtle);
+            transition: all 0.2s;
+        }
+
+        .history-card:hover {
+            border-color: var(--primary);
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .history-details {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-midi { background: #818cf8; color: white; }
+        .badge-mp3 { background: #fb7185; color: white; }
+        .badge-completed { background: #22c55e; color: white; }
+        .badge-processing { background: #f59e0b; color: white; }
+        .badge-error { background: #ef4444; color: white; }
     </style>
 </head>
 <body>
@@ -453,18 +586,60 @@
                     <button class="btn btn-outline" id="new-upload-btn">Novo Upload</button>
                     <button class="btn btn-primary" id="download-btn">Download MIDI</button>
                 </div>
+
+                <!-- MIDI Player Inline -->
+                <div id="midi-player-section" class="hidden">
+                    <div class="midi-player-container">
+                        <h3 style="margin-bottom: 1rem; color: var(--primary);">MIDI Player</h3>
+                        <div class="player-controls">
+                            <button class="play-btn" id="main-play-btn">▶</button>
+                            <div class="progress-slider" id="main-progress-slider">
+                                <div class="progress-slider-fill" id="main-progress-fill"></div>
+                            </div>
+                            <span id="main-player-time" style="font-family: monospace; font-size: 0.875rem;">00:00 / 00:00</span>
+                        </div>
+                        
+                        <div class="note-map-container">
+                            <h4 style="margin-bottom: 0.5rem; font-size: 0.875rem; color: var(--muted);">Mapa de Notas</h4>
+                            <table class="note-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nota</th>
+                                        <th>Tempo (s)</th>
+                                        <th>Duração (s)</th>
+                                        <th>Velocidade</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="main-note-table-body">
+                                    <!-- Notas inseridas via JS -->
+                                </tbody>
+                            </table>
+                            <div class="pagination" id="main-note-pagination"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </main>
 
         <!-- History View -->
         <main id="history-view" class="hidden">
             <div class="card">
-                <h1>Meu Histórico</h1>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <h1>Meu Histórico</h1>
+                    <button class="btn btn-outline" style="width: auto; padding: 0.5rem 1rem;" onclick="showConverter()">Voltar</button>
+                </div>
                 <p class="subtitle">Acesse suas conversões anteriores.</p>
+                
+                <!-- Filtros de Histórico -->
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; overflow-x: auto; padding-bottom: 0.5rem;">
+                    <button class="page-btn active" onclick="filterHistory('all')">Todos</button>
+                    <button class="page-btn" onclick="filterHistory('midi')">MIDI</button>
+                    <button class="page-btn" onclick="filterHistory('mp3')">MP3</button>
+                </div>
+
                 <div id="history-list" style="display: grid; gap: 1rem;">
                     <!-- Jobs will be injected here -->
                 </div>
-                <button class="btn btn-outline" style="margin-top: 1.5rem;" onclick="showConverter()">Voltar ao Conversor</button>
             </div>
         </main>
 
@@ -603,10 +778,7 @@
 
         historyLink.addEventListener('click', (e) => {
             e.preventDefault();
-            showHistory();
-        });
-
-        async function showHistory() {
+            showHistor        async function showHistory(filter = 'all') {
             converterView.classList.add('hidden');
             resultView.classList.add('hidden');
             authView.classList.add('hidden');
@@ -615,7 +787,13 @@
             const list = document.getElementById('history-list');
             list.innerHTML = '<p>Carregando...</p>';
             
-            const { data, error } = await _supabase.table('jobs').select('*').order('created_at', { ascending: false });
+            let query = _supabase.from('jobs').select('*').order('created_at', { ascending: false });
+            
+            if (filter !== 'all') {
+                query = query.eq('job_type', filter);
+            }
+            
+            const { data, error } = await query;
             
             if (error) {
                 list.innerHTML = '<p>Erro ao carregar histórico.</p>';
@@ -627,187 +805,335 @@
                 return;
             }
             
-            list.innerHTML = data.map(job => `
-                <div class="stat" style="display: flex; justify-content: space-between; align-items: center; text-align: left;">
-                    <div>
-                        <div style="font-weight: 600; color: white;">${job.file_name || 'Job ' + job.id.slice(0,8)}</div>
-                        <div style="font-size: 0.75rem; color: var(--muted);">${new Date(job.created_at).toLocaleString()} | ${job.job_type}</div>
+            list.innerHTML = data.map(job => {
+                const isMidi = job.job_type === 'midi';
+                const statusBadge = `<span class="badge badge-${job.status}">${job.status}</span>`;
+                const typeBadge = `<span class="badge badge-${job.job_type}">${job.job_type}</span>`;
+                const date = new Date(job.created_at).toLocaleString('pt-BR');
+                
+                return `
+                <div class="history-card" id="card-${job.id}">
+                    <div class="history-header" onclick="toggleCard('${job.id}')">
+                        <div>
+                            <div style="font-weight: 600; color: white;">${job.file_name || 'Job ' + job.id.slice(0,8)}</div>
+                            <div style="font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem;">
+                                ${date} | ${typeBadge} ${statusBadge}
+                            </div>
+                        </div>
+                        <div style="color: var(--primary); transition: transform 0.2s;" id="arrow-${job.id}">▼</div>
                     </div>
-                    <div>
-                        <span style="color: ${job.status === 'completed' ? 'var(--primary)' : 'var(--muted)'}; margin-right: 1rem;">${job.status}</span>
-                        ${job.status === 'completed' ? `<button class="tab" style="padding: 0.25rem 0.5rem;" onclick="viewResult('${job.id}')">Ver</button>` : ''}
+                    <div id="details-${job.id}" class="history-details hidden">
+                        <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                            <button class="btn btn-outline" style="padding: 0.5rem; font-size: 0.875rem;" onclick="downloadFromId('${job.id}', '${job.job_type}')">⬇ Baixar</button>
+                            ${isMidi && job.status === 'completed' ? `<button class="btn btn-primary" style="padding: 0.5rem; font-size: 0.875rem;" onclick="loadMidiToCard('${job.id}')">▶ Tocar</button>` : ''}
+                        </div>
+                        <div id="player-container-${job.id}"></div>
                     </div>
                 </div>
-            `).join('');
+                `;
+            }).join('');
         }
 
-        window.viewResult = async (jobId) => {
-            const { data } = await _supabase.table('jobs').select('*').eq('id', jobId).single();
-            showResult(data);
-            currentJobId = jobId;
-            currentJobType = data.job_type;
+        window.filterHistory = (type) => {
+            document.querySelectorAll('.history-view .page-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            showHistory(type);
         };
 
-        window.showConverter = () => {
+        window.toggleCard = (id) => {
+            const details = document.getElementById(`details-${id}`);
+            const arrow = document.getElementById(`arrow-${id}`);
+            const isHidden = details.classList.contains('hidden');
+            
+            // Fecha outros abertos (opcional)
+            // document.querySelectorAll('.history-details').forEach(d => d.classList.add('hidden'));
+            
+            if (isHidden) {
+                details.classList.remove('hidden');
+                arrow.style.transform = 'rotate(180deg)';
+            } else {
+                details.classList.add('hidden');
+                arrow.style.transform = 'rotate(0deg)';
+                if (window.activePlayers && window.activePlayers[id]) {
+                    window.activePlayers[id].stop();
+                }
+            }
+        };
+
+        // MIDI PLAYER ENGINE
+        class HeartmidPlayer {
+            constructor(containerId, prefix = '') {
+                this.container = document.getElementById(containerId);
+                this.prefix = prefix;
+                this.midi = null;
+                this.sampler = null;
+                this.isPlaying = false;
+                this.scheduledEvents = [];
+                this.notes = [];
+                this.pageSize = 5;
+                this.currentPage = 1;
+                
+                this.setupSampler();
+            }
+
+            async setupSampler() {
+                // Sampler de piano simples usando Tone.js
+                this.sampler = new Tone.Sampler({
+                    urls: {
+                        A0: "A0.mp3",
+                        C1: "C1.mp3",
+                        "D#1": "Ds1.mp3",
+                        "F#1": "Fs1.mp3",
+                        A1: "A1.mp3",
+                        C2: "C2.mp3",
+                        "D#2": "Ds2.mp3",
+                        "F#2": "Fs2.mp3",
+                        A2: "A2.mp3",
+                        C3: "C3.mp3",
+                        "D#3": "Ds3.mp3",
+                        "F#3": "Fs3.mp3",
+                        A3: "A3.mp3",
+                        C4: "C4.mp3",
+                        "D#4": "Ds4.mp3",
+                        "F#4": "Fs4.mp3",
+                        A4: "A4.mp3",
+                        C5: "C5.mp3",
+                        "D#5": "Ds5.mp3",
+                        "F#5": "Fs5.mp3",
+                        A5: "A5.mp3",
+                        C6: "C6.mp3",
+                        "D#6": "Ds6.mp3",
+                        "F#6": "Fs6.mp3",
+                        A7: "A7.mp3",
+                        C8: "C8.mp3"
+                    },
+                    release: 1,
+                    baseUrl: "https://tonejs.github.io/audio/salamander/"
+                }).toDestination();
+            }
+
+            async loadMidi(base64Data) {
+                const raw = atob(base64Data);
+                const uint8 = new Uint8Array(raw.length);
+                for (let i = 0; i < raw.length; i++) uint8[i] = raw.charCodeAt(i);
+                
+                this.midi = new Midi(uint8);
+                this.notes = [];
+                this.midi.tracks.forEach(track => {
+                    track.notes.forEach(note => this.notes.push(note));
+                });
+                this.notes.sort((a, b) => a.time - b.time);
+                
+                this.renderNoteTable();
+                this.updateTimeDisplay(0, this.midi.duration);
+            }
+
+            renderNoteTable() {
+                const tbody = document.getElementById(`${this.prefix}note-table-body`);
+                const pagination = document.getElementById(`${this.prefix}note-pagination`);
+                if (!tbody) return;
+
+                const start = (this.currentPage - 1) * this.pageSize;
+                const end = start + this.pageSize;
+                const pageNotes = this.notes.slice(start, end);
+
+                tbody.innerHTML = pageNotes.map(n => `
+                    <tr>
+                        <td>${n.name}</td>
+                        <td>${n.time.toFixed(2)}</td>
+                        <td>${n.duration.toFixed(2)}</td>
+                        <td>${(n.velocity * 100).toFixed(0)}%</td>
+                    </tr>
+                `).join('');
+
+                const totalPages = Math.ceil(this.notes.length / this.pageSize);
+                pagination.innerHTML = `
+                    <button class="page-btn" onclick="window.playerChangePage('${this.prefix}', ${this.currentPage - 1})" ${this.currentPage === 1 ? 'disabled' : ''}>&lt;</button>
+                    <span style="font-size: 0.875rem;">${this.currentPage} / ${totalPages}</span>
+                    <button class="page-btn" onclick="window.playerChangePage('${this.prefix}', ${this.currentPage + 1})" ${this.currentPage === totalPages ? 'disabled' : ''}>&gt;</button>
+                `;
+            }
+
+            toggle() {
+                if (this.isPlaying) this.pause();
+                else this.play();
+            }
+
+            async play() {
+                await Tone.start();
+                if (this.isPlaying) return;
+                
+                this.isPlaying = true;
+                const playBtn = document.getElementById(`${this.prefix}play-btn`);
+                if (playBtn) playBtn.textContent = '⏸';
+
+                const now = Tone.now() + 0.1;
+                this.notes.forEach(note => {
+                    const event = Tone.Transport.schedule(time => {
+                        this.sampler.triggerAttackRelease(note.name, note.duration, time, note.velocity);
+                    }, note.time);
+                    this.scheduledEvents.push(event);
+                });
+
+                Tone.Transport.start();
+                
+                this.animationReq = requestAnimationFrame(() => this.updateProgress());
+            }
+
+            pause() {
+                this.isPlaying = false;
+                const playBtn = document.getElementById(`${this.prefix}play-btn`);
+                if (playBtn) playBtn.textContent = '▶';
+                Tone.Transport.pause();
+                cancelAnimationFrame(this.animationReq);
+            }
+
+            stop() {
+                this.pause();
+                Tone.Transport.stop();
+                Tone.Transport.cancel();
+                this.scheduledEvents = [];
+            }
+
+            updateProgress() {
+                if (!this.isPlaying) return;
+                
+                const time = Tone.Transport.seconds;
+                const duration = this.midi.duration;
+                const percent = (time / duration) * 100;
+                
+                const fill = document.getElementById(`${this.prefix}progress-fill`);
+                if (fill) fill.style.width = `${Math.min(percent, 100)}%`;
+                
+                this.updateTimeDisplay(time, duration);
+                
+                if (time >= duration) {
+                    this.stop();
+                    if (fill) fill.style.width = '0%';
+                } else {
+                    this.animationReq = requestAnimationFrame(() => this.updateProgress());
+                }
+            }
+
+            updateTimeDisplay(current, total) {
+                const fmt = s => {
+                    const m = Math.floor(s / 60);
+                    const rs = Math.floor(s % 60);
+                    return `${m.toString().padStart(2, '0')}:${rs.toString().padStart(2, '0')}`;
+                };
+                const display = document.getElementById(`${this.prefix}player-time`);
+                if (display) display.textContent = `${fmt(current)} / ${fmt(total)}`;
+            }
+        }
+
+        window.activePlayers = {};
+
+        window.playerChangePage = (prefix, page) => {
+            // Encontra o player correto (main ou id de job)
+            let player;
+            if (prefix === 'main-') player = window.mainPlayer;
+            else {
+                const id = prefix.replace('player-', '').replace('-', '');
+                player = window.activePlayers[id];
+            }
+            if (player) {
+                player.currentPage = page;
+                player.renderNoteTable();
+            }
+        };
+
+        window.loadMidiToCard = async (id) => {
+            const container = document.getElementById(`player-container-${id}`);
+            container.innerHTML = `
+                <div class="midi-player-container" style="margin-top: 0.5rem; padding: 1rem;">
+                    <div class="player-controls">
+                        <button class="play-btn" id="player-${id}-play-btn" style="width: 32px; height: 32px; font-size: 0.875rem;">▶</button>
+                        <div class="progress-slider">
+                            <div class="progress-slider-fill" id="player-${id}-progress-fill"></div>
+                        </div>
+                        <span id="player-${id}-player-time" style="font-family: monospace; font-size: 0.75rem;">00:00 / 00:00</span>
+                    </div>
+                    <div class="note-map-container" style="margin-top: 1rem;">
+                        <table class="note-table" style="font-size: 0.75rem;">
+                            <thead><tr><th>Nota</th><th>T(s)</th><th>D(s)</th><th>Vel</th></tr></thead>
+                            <tbody id="player-${id}-note-table-body"></tbody>
+                        </table>
+                        <div class="pagination" id="player-${id}-note-pagination"></div>
+                    </div>
+                </div>
+            `;
+            
+            const res = await fetchWithAuth(`${API_URL}/midi-data/${id}`);
+            const data = await res.json();
+            
+            const player = new HeartmidPlayer(`player-container-${id}`, `player-${id}-`);
+            await player.loadMidi(data.data);
+            
+            document.getElementById(`player-${id}-play-btn`).onclick = () => player.toggle();
+            window.activePlayers[id] = player;
+        };
+
+        async function showResult(data) {
+            const isMidi = data.job_type === 'midi';
+            const metadata = data.metadata || {};
+            
+            document.getElementById('file-name').textContent = data.file_name || (data.job_type === 'mp3' ? 'youtube_audio.mp3' : 'audio_file.wav');
+            document.getElementById('duration').textContent = metadata.duration || '00:00';
+            document.getElementById('notes').textContent = metadata.note_count || '0';
+            
+            const midiSection = document.getElementById('midi-player-section');
+            if (isMidi) {
+                document.getElementById('notes').parentElement.classList.remove('hidden');
+                document.getElementById('duration').parentElement.classList.remove('hidden');
+                downloadBtn.textContent = 'Download MIDI';
+                midiSection.classList.remove('hidden');
+                
+                // Inicializa player principal
+                if (!window.mainPlayer) window.mainPlayer = new HeartmidPlayer('midi-player-section', 'main-');
+                const res = await fetchWithAuth(`${API_URL}/midi-data/${data.id}`);
+                const midiData = await res.json();
+                await window.mainPlayer.loadMidi(midiData.data);
+                document.getElementById('main-play-btn').onclick = () => window.mainPlayer.toggle();
+            } else {
+                document.getElementById('notes').parentElement.classList.add('hidden');
+                document.getElementById('duration').parentElement.classList.add('hidden');
+                downloadBtn.textContent = 'Download MP3';
+                midiSection.classList.add('hidden');
+            }
+
+            converterView.classList.add('hidden');
             historyView.classList.add('hidden');
+            resultView.classList.remove('hidden');
+        }
+
+        window.downloadFromId = async (id, type) => {
+            const endpoint = type === 'mp3' ? 'download-mp3' : 'download';
+            try {
+                const res = await fetchWithAuth(`${API_URL}/${endpoint}/${id}`);
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `heartmid_${id}.${type === 'mp3' ? 'mp3' : 'mid'}`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+            } catch (err) {
+                alert('Erro ao baixar arquivo: ' + err.message);
+            }
+        };
+
+        newUploadBtn.addEventListener('click', () => {
+            if (window.mainPlayer) window.mainPlayer.stop();
             resultView.classList.add('hidden');
             converterView.classList.remove('hidden');
-        };
-
-        initSupabase();
-
-
-        // Check Health
-        async function checkHealth() {
-            try {
-                const res = await fetch(`${API_URL}/health`);
-                if (res.ok) {
-                    document.getElementById('status-dot').classList.add('online');
-                    document.getElementById('status-text').textContent = 'Online';
-                } else {
-                    throw new Error();
-                }
-            } catch (err) {
-                document.getElementById('status-dot').classList.remove('online');
-                document.getElementById('status-text').textContent = 'Offline';
-            }
-        }
-        
-        checkHealth();
-        setInterval(checkHealth, 10000);
-
-        // Tabs
-        tabs.forEach(tab => {
-            tab.addEventListener('click', () => {
-                tabs.forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-                
-                if (tab.dataset.tab === 'url') {
-                    urlInput.classList.remove('hidden');
-                    fileInput.classList.add('hidden');
-                    mp3Input.classList.add('hidden');
-                    midiOptions.classList.remove('hidden');
-                    convertBtn.querySelector('span').textContent = 'Converter';
-                } else if (tab.dataset.tab === 'file') {
-                    urlInput.classList.add('hidden');
-                    fileInput.classList.remove('hidden');
-                    mp3Input.classList.add('hidden');
-                    midiOptions.classList.remove('hidden');
-                    convertBtn.querySelector('span').textContent = 'Converter';
-                } else {
-                    urlInput.classList.add('hidden');
-                    fileInput.classList.add('hidden');
-                    mp3Input.classList.remove('hidden');
-                    midiOptions.classList.add('hidden');
-                    convertBtn.querySelector('span').textContent = 'Baixar MP3';
-                }
-            });
+            convertBtn.disabled = false;
+            progress.classList.remove('active');
+            currentJobId = null;
         });
 
-        // File Drop
-        const dropZone = document.getElementById('drop-zone');
-        const audioFile = document.getElementById('audio-file');
-
-        dropZone.addEventListener('click', () => audioFile.click());
-        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = 'var(--primary)'; });
-        dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = ''; });
-        dropZone.addEventListener('drop', e => {
-            e.preventDefault();
-            dropZone.style.borderColor = '';
-            if (e.dataTransfer.files.length) audioFile.files = e.dataTransfer.files;
-        });
-
-        // Helper to fetch with token
-        async function fetchWithAuth(url, options = {}) {
-            if (!session) {
-                alert('Você precisa estar logado.');
-                return;
-            }
-            options.headers = options.headers || {};
-            options.headers['Authorization'] = `Bearer ${session.access_token}`;
-            return fetch(url, options);
-        }
-
-        // Convert
-        convertBtn.addEventListener('click', async () => {
-            const activeTab = document.querySelector('.tab.active').dataset.tab;
-            
-            if (activeTab === 'mp3') {
-                const url = document.getElementById('mp3-url').value;
-                const bitrate = document.getElementById('mp3-bitrate').value;
-
-                if (!url) {
-                    alert('Por favor, insira a URL do YouTube');
-                    return;
-                }
-
-                const formData = new FormData();
-                formData.append('url', url);
-                formData.append('bitrate', bitrate);
-
-                convertBtn.disabled = true;
-                progress.classList.add('active');
-                updateProgress(10, 'Iniciando conversão...');
-
-                try {
-                    const res = await fetchWithAuth(`${API_URL}/youtube-to-mp3`, {
-                        method: 'POST',
-                        body: formData
-                    });
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data.detail || 'Erro na requisição');
-                    currentJobId = data.job_id;
-                    currentJobType = 'mp3';
-                    pollingInterval = setInterval(() => checkStatus(currentJobId), 2000);
-                } catch (err) {
-                    alert('Erro ao processar: ' + err.message);
-                    convertBtn.disabled = false;
-                    progress.classList.remove('active');
-                }
-                return;
-            }
-
-            const url = document.getElementById('youtube-url').value;
-            const file = audioFile.files[0];
-            const instrument = document.getElementById('instrument').value;
-            const applyFilters = document.getElementById('apply-filters').checked;
-
-            if (activeTab === 'url' && !url) {
-                alert('Por favor, insira a URL do YouTube');
-                return;
-            }
-            if (activeTab === 'file' && !file) {
-                alert('Por favor, selecione um arquivo');
-                return;
-            }
-
-            const formData = new FormData();
-            formData.append('source', activeTab);
-            if (activeTab === 'url') formData.append('url', url);
-            if (activeTab === 'file') formData.append('file', file);
-            formData.append('instrument', instrument);
-            formData.append('apply_filters', applyFilters);
-
-            convertBtn.disabled = true;
-            progress.classList.add('active');
-            updateProgress(10, 'Iniciando processamento...');
-
-            try {
-                const res = await fetchWithAuth(`${API_URL}/convert`, {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.detail || 'Erro na requisição');
-                currentJobId = data.job_id;
-                currentJobType = 'midi';
-
-                pollingInterval = setInterval(() => checkStatus(currentJobId), 2000);
-            } catch (err) {
-                alert('Erro ao processar: ' + err.message);
-                convertBtn.disabled = false;
-                progress.classList.remove('active');
-            }
+        downloadBtn.addEventListener('click', () => {
+            if (currentJobId) downloadFromId(currentJobId, currentJobType);
         });
 
         async function checkStatus(jobId) {
@@ -820,6 +1146,7 @@
 
                 if (data.status === 'completed') {
                     clearInterval(pollingInterval);
+                    currentJobId = data.id; // Garante que temos o ID correto
                     showResult(data);
                 } else if (data.status === 'error') {
                     clearInterval(pollingInterval);
@@ -831,66 +1158,9 @@
                 console.error('Status check failed:', err);
             }
         }
-
-        function updateProgress(percent, text) {
-            progressFill.style.width = percent + '%';
-            progressText.textContent = text;
-        }
-
-        function showResult(data) {
-            const isMp3 = data.job_type === 'mp3';
-            const metadata = data.metadata || {};
-            
-            document.getElementById('file-name').textContent = data.file_name || (isMp3 ? 'youtube_audio.mp3' : 'audio_file.wav');
-            document.getElementById('duration').textContent = metadata.duration || (isMp3 ? 'N/A' : '00:00');
-            document.getElementById('notes').textContent = isMp3 ? 'N/A' : (metadata.note_count || '0');
-            
-            if (isMp3) {
-                document.getElementById('notes').parentElement.classList.add('hidden');
-                document.getElementById('duration').parentElement.classList.add('hidden');
-                downloadBtn.textContent = 'Download MP3';
-            } else {
-                document.getElementById('notes').parentElement.classList.remove('hidden');
-                document.getElementById('duration').parentElement.classList.remove('hidden');
-                downloadBtn.textContent = 'Download MIDI';
-            }
-
-            converterView.classList.add('hidden');
-            historyView.classList.add('hidden');
-            resultView.classList.remove('hidden');
-        }
-
-        newUploadBtn.addEventListener('click', () => {
-            resultView.classList.add('hidden');
-            converterView.classList.remove('hidden');
-            convertBtn.disabled = false;
-            progress.classList.remove('active');
-            currentJobId = null;
-        });
-
-        downloadBtn.addEventListener('click', async () => {
-            if (currentJobId && session) {
-                const endpoint = currentJobType === 'mp3' ? 'download-mp3' : 'download';
-                // Open in new tab with token in query param? No, browser can't send headers easily via window.open
-                // Instead, we can use a fetch to get a blob and then download it, or use a temporary signed URL if storage was used.
-                // For now, since it's local files, we'll use a fetch and create an object URL.
-                
-                try {
-                    const res = await fetchWithAuth(`${API_URL}/${endpoint}/${currentJobId}`);
-                    const blob = await res.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `heartmid_${currentJobId}.${currentJobType === 'mp3' ? 'mp3' : 'mid'}`;
-                    document.body.appendChild(a);
-                    a.click();
-                    window.URL.revokeObjectURL(url);
-                } catch (err) {
-                    alert('Erro ao baixar arquivo: ' + err.message);
-                }
-            }
-        });
     </script>
-    </script>
+</body>
+</html>
+ </script>
 </body>
 </html>

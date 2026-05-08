@@ -427,6 +427,34 @@ async def download_mp3(job_id: str, user = Depends(get_current_user)):
         filename=f"heartmid_audio_{job_id}.mp3"
     )
 
+@app.get("/midi-data/{job_id}")
+async def get_midi_data(job_id: str, user = Depends(get_current_user)):
+    """Retorna o arquivo .mid em base64 para o player MIDI no frontend."""
+    import base64
+    job = await job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job não encontrado")
+    if str(job.get("user_id")) != str(user.id):
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    if job.get("job_type") != "midi":
+        raise HTTPException(status_code=400, detail="Job não é do tipo MIDI")
+    if job.get("status") != "completed":
+        raise HTTPException(status_code=400, detail="Processamento não concluído")
+    output_file = job.get("output_file")
+    if not output_file:
+        raise HTTPException(status_code=404, detail="Arquivo de saída não definido")
+    file_path = Path(output_file)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Arquivo .mid não encontrado no disco")
+    with open(file_path, "rb") as f:
+        data = base64.b64encode(f.read()).decode("utf-8")
+    return {
+        "data": data,
+        "filename": f"heartmid_{job_id}.mid",
+        "note_count": job_manager.get_note_count(file_path),
+        "duration": job_manager.get_duration(file_path)
+    }
+
 @app.get("/source/{job_id}")
 async def get_source_audio(job_id: str, user = Depends(get_current_user)):
     job = await job_manager.get_job(job_id)
