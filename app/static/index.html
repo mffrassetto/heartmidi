@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>heartmid</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <style>
         * {
             margin: 0;
@@ -320,10 +322,28 @@
                     <div class="status-dot" id="status-dot"></div>
                     <span id="status-text">Offline</span>
                 </div>
-                <a href="#">History</a>
-                <a href="#">Library</a>
+                <a href="#" id="history-link" class="hidden">History</a>
+                <a href="#" id="logout-btn" class="hidden">Logout</a>
+                <a href="#" id="login-link">Login</a>
             </nav>
         </header>
+
+        <!-- Auth View -->
+        <div id="auth-view" class="hidden">
+            <div class="card" style="max-width: 400px; margin: 4rem auto;">
+                <h2 id="auth-title" style="margin-bottom: 1.5rem;">Entrar</h2>
+                <div class="input-group">
+                    <label>E-mail</label>
+                    <input type="email" id="auth-email" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: var(--surface-dim); color: white; border: 1px solid var(--border-subtle);">
+                </div>
+                <div class="input-group">
+                    <label>Senha</label>
+                    <input type="password" id="auth-password" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: var(--surface-dim); color: white; border: 1px solid var(--border-subtle);">
+                </div>
+                <button class="btn btn-primary" id="auth-btn" style="margin-top: 1rem;">Entrar</button>
+                <p style="margin-top: 1.5rem; text-align: center; cursor: pointer; color: var(--primary); font-size: 0.875rem;" id="toggle-auth">Não tem conta? Cadastre-se</p>
+            </div>
+        </div>
 
         <!-- Converter Form -->
         <main id="converter-view">
@@ -431,13 +451,29 @@
             </div>
         </main>
 
+        <!-- History View -->
+        <main id="history-view" class="hidden">
+            <div class="card">
+                <h1>Meu Histórico</h1>
+                <p class="subtitle">Acesse suas conversões anteriores.</p>
+                <div id="history-list" style="display: grid; gap: 1rem;">
+                    <!-- Jobs will be injected here -->
+                </div>
+                <button class="btn btn-outline" style="margin-top: 1.5rem;" onclick="showConverter()">Voltar ao Conversor</button>
+            </div>
+        </main>
+
         <footer style="text-align: center; padding: 2rem; color: var(--muted); font-size: 0.875rem;">
             <p>© 2024 Maria Fernanda Frassetto - MFF Web Agency. MIDI compatibility for Heartopia.</p>
         </footer>
     </div>
 
     <script>
-        const API_URL = ''; // Use relative path for same-origin requests
+        const SUPABASE_URL = 'https://nwffpqopzpvlgicwlfdv.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im53ZmZwcW9wenB2bGdpY3dsZmR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxOTkzOTMsImV4cCI6MjA5Mzc3NTM5M30.d4glVvcB4YItSNdO9ctWtRIV-Iyc2lfOr5qD6-Kvdmo';
+        
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const API_URL = '';
 
         const tabs = document.querySelectorAll('.tab');
         const urlInput = document.getElementById('url-input');
@@ -448,14 +484,139 @@
         const progressText = document.getElementById('progress-text');
         const converterView = document.getElementById('converter-view');
         const resultView = document.getElementById('result-view');
+        const authView = document.getElementById('auth-view');
+        const historyView = document.getElementById('history-view');
         const newUploadBtn = document.getElementById('new-upload-btn');
         const downloadBtn = document.getElementById('download-btn');
         const mp3Input = document.getElementById('mp3-input');
         const midiOptions = document.getElementById('midi-options');
+        const loginLink = document.getElementById('login-link');
+        const logoutBtn = document.getElementById('logout-btn');
+        const historyLink = document.getElementById('history-link');
 
         let currentJobId = null;
         let currentJobType = 'midi';
         let pollingInterval = null;
+        let session = null;
+        let isSignUp = false;
+
+        // Auth Logic
+        async function checkSession() {
+            const { data } = await _supabase.auth.getSession();
+            session = data.session;
+            updateUI();
+        }
+
+        function updateUI() {
+            if (session) {
+                loginLink.classList.add('hidden');
+                logoutBtn.classList.remove('hidden');
+                historyLink.classList.remove('hidden');
+                authView.classList.add('hidden');
+                if (historyView.classList.contains('hidden') && resultView.classList.contains('hidden')) {
+                    converterView.classList.remove('hidden');
+                }
+            } else {
+                loginLink.classList.remove('hidden');
+                logoutBtn.classList.add('hidden');
+                historyLink.classList.add('hidden');
+                converterView.classList.add('hidden');
+                resultView.classList.add('hidden');
+                historyView.classList.add('hidden');
+                authView.classList.remove('hidden');
+            }
+        }
+
+        document.getElementById('toggle-auth').addEventListener('click', () => {
+            isSignUp = !isSignUp;
+            document.getElementById('auth-title').textContent = isSignUp ? 'Cadastrar' : 'Entrar';
+            document.getElementById('auth-btn').textContent = isSignUp ? 'Criar Conta' : 'Entrar';
+            document.getElementById('toggle-auth').textContent = isSignUp ? 'Já tem conta? Entre aqui' : 'Não tem conta? Cadastre-se';
+        });
+
+        document.getElementById('auth-btn').addEventListener('click', async () => {
+            const email = document.getElementById('auth-email').value;
+            const password = document.getElementById('auth-password').value;
+            
+            if (isSignUp) {
+                const { error } = await _supabase.auth.signUp({ email, password });
+                if (error) alert(error.message);
+                else alert('Verifique seu e-mail para confirmar o cadastro!');
+            } else {
+                const { error } = await _supabase.auth.signInWithPassword({ email, password });
+                if (error) alert(error.message);
+                else checkSession();
+            }
+        });
+
+        logoutBtn.addEventListener('click', async () => {
+            await _supabase.auth.signOut();
+            session = null;
+            updateUI();
+        });
+
+        loginLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            converterView.classList.add('hidden');
+            historyView.classList.add('hidden');
+            resultView.classList.add('hidden');
+            authView.classList.remove('hidden');
+        });
+
+        historyLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            showHistory();
+        });
+
+        async function showHistory() {
+            converterView.classList.add('hidden');
+            resultView.classList.add('hidden');
+            authView.classList.add('hidden');
+            historyView.classList.remove('hidden');
+            
+            const list = document.getElementById('history-list');
+            list.innerHTML = '<p>Carregando...</p>';
+            
+            const { data, error } = await _supabase.table('jobs').select('*').order('created_at', { ascending: false });
+            
+            if (error) {
+                list.innerHTML = '<p>Erro ao carregar histórico.</p>';
+                return;
+            }
+            
+            if (data.length === 0) {
+                list.innerHTML = '<p>Nenhuma conversão encontrada.</p>';
+                return;
+            }
+            
+            list.innerHTML = data.map(job => `
+                <div class="stat" style="display: flex; justify-content: space-between; align-items: center; text-align: left;">
+                    <div>
+                        <div style="font-weight: 600; color: white;">${job.file_name || 'Job ' + job.id.slice(0,8)}</div>
+                        <div style="font-size: 0.75rem; color: var(--muted);">${new Date(job.created_at).toLocaleString()} | ${job.job_type}</div>
+                    </div>
+                    <div>
+                        <span style="color: ${job.status === 'completed' ? 'var(--primary)' : 'var(--muted)'}; margin-right: 1rem;">${job.status}</span>
+                        ${job.status === 'completed' ? `<button class="tab" style="padding: 0.25rem 0.5rem;" onclick="viewResult('${job.id}')">Ver</button>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        window.viewResult = async (jobId) => {
+            const { data } = await _supabase.table('jobs').select('*').eq('id', jobId).single();
+            showResult(data);
+            currentJobId = jobId;
+            currentJobType = data.job_type;
+        };
+
+        window.showConverter = () => {
+            historyView.classList.add('hidden');
+            resultView.classList.add('hidden');
+            converterView.classList.remove('hidden');
+        };
+
+        checkSession();
 
         // Check Health
         async function checkHealth() {
@@ -517,6 +678,17 @@
             if (e.dataTransfer.files.length) audioFile.files = e.dataTransfer.files;
         });
 
+        // Helper to fetch with token
+        async function fetchWithAuth(url, options = {}) {
+            if (!session) {
+                alert('Você precisa estar logado.');
+                return;
+            }
+            options.headers = options.headers || {};
+            options.headers['Authorization'] = `Bearer ${session.access_token}`;
+            return fetch(url, options);
+        }
+
         // Convert
         convertBtn.addEventListener('click', async () => {
             const activeTab = document.querySelector('.tab.active').dataset.tab;
@@ -539,11 +711,12 @@
                 updateProgress(10, 'Iniciando conversão...');
 
                 try {
-                    const res = await fetch(`${API_URL}/youtube-to-mp3`, {
+                    const res = await fetchWithAuth(`${API_URL}/youtube-to-mp3`, {
                         method: 'POST',
                         body: formData
                     });
                     const data = await res.json();
+                    if (!res.ok) throw new Error(data.detail || 'Erro na requisição');
                     currentJobId = data.job_id;
                     currentJobType = 'mp3';
                     pollingInterval = setInterval(() => checkStatus(currentJobId), 2000);
@@ -581,11 +754,12 @@
             updateProgress(10, 'Iniciando processamento...');
 
             try {
-                const res = await fetch(`${API_URL}/convert`, {
+                const res = await fetchWithAuth(`${API_URL}/convert`, {
                     method: 'POST',
                     body: formData
                 });
                 const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Erro na requisição');
                 currentJobId = data.job_id;
                 currentJobType = 'midi';
 
@@ -599,7 +773,8 @@
 
         async function checkStatus(jobId) {
             try {
-                const res = await fetch(`${API_URL}/status/${jobId}`);
+                const res = await fetchWithAuth(`${API_URL}/status/${jobId}`);
+                if (!res.ok) return;
                 const data = await res.json();
 
                 updateProgress(data.progress, data.stage);
@@ -625,10 +800,11 @@
 
         function showResult(data) {
             const isMp3 = data.job_type === 'mp3';
+            const metadata = data.metadata || {};
             
             document.getElementById('file-name').textContent = data.file_name || (isMp3 ? 'youtube_audio.mp3' : 'audio_file.wav');
-            document.getElementById('duration').textContent = data.duration || (isMp3 ? 'N/A' : '02:14');
-            document.getElementById('notes').textContent = isMp3 ? 'N/A' : (data.note_count || '0');
+            document.getElementById('duration').textContent = metadata.duration || (isMp3 ? 'N/A' : '00:00');
+            document.getElementById('notes').textContent = isMp3 ? 'N/A' : (metadata.note_count || '0');
             
             if (isMp3) {
                 document.getElementById('notes').parentElement.classList.add('hidden');
@@ -641,6 +817,7 @@
             }
 
             converterView.classList.add('hidden');
+            historyView.classList.add('hidden');
             resultView.classList.remove('hidden');
         }
 
@@ -652,12 +829,29 @@
             currentJobId = null;
         });
 
-        downloadBtn.addEventListener('click', () => {
-            if (currentJobId) {
+        downloadBtn.addEventListener('click', async () => {
+            if (currentJobId && session) {
                 const endpoint = currentJobType === 'mp3' ? 'download-mp3' : 'download';
-                window.open(`${API_URL}/${endpoint}/${currentJobId}`, '_blank');
+                // Open in new tab with token in query param? No, browser can't send headers easily via window.open
+                // Instead, we can use a fetch to get a blob and then download it, or use a temporary signed URL if storage was used.
+                // For now, since it's local files, we'll use a fetch and create an object URL.
+                
+                try {
+                    const res = await fetchWithAuth(`${API_URL}/${endpoint}/${currentJobId}`);
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `heartmid_${currentJobId}.${currentJobType === 'mp3' ? 'mp3' : 'mid'}`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                } catch (err) {
+                    alert('Erro ao baixar arquivo: ' + err.message);
+                }
             }
         });
+    </script>
     </script>
 </body>
 </html>
