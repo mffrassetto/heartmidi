@@ -10,7 +10,5 @@ librosa>=0.10.0
 pretty-midi>=0.2.9
 scikit-learn>=1.0.0,<1.6
 scipy>=1.10.0
-torch==2.2.2
-torchvision==0.17.2
 supabase>=2.10.0
 python-jose[cryptography]>=3.3.0

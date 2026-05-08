@@ -15,12 +15,19 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 # Pin numpy<2 BEFORE installing torch/piano-transcription-inference to avoid
 # the NumPy 2.x ABI incompatibility with torch binaries compiled for NumPy 1.x.
+# Pin numpy<2 BEFORE installing torch to avoid ABI incompatibility.
 RUN pip install --no-cache-dir "numpy>=1.24.0,<2.0"
+
+# Install torch CPU version first to avoid CUDA dependencies (~2GB savings)
+RUN pip install --no-cache-dir torch==2.2.2 torchvision==0.17.2 --index-url https://download.pytorch.org/whl/cpu
+
+
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Pre-download the piano-transcription model checkpoint at build time (~100 MB)
-# so the first conversion request is not blocked by a large download.
-RUN python -c "from piano_transcription_inference import PianoTranscription; PianoTranscription(device='cpu')"
+# Pre-download model commented out to save RAM during build. 
+# It will download on the first run instead.
+# RUN python -c "from piano_transcription_inference import PianoTranscription; PianoTranscription(device='cpu')"
+
 
 COPY app/ ./app/
 COPY .gitignore .
