@@ -33,7 +33,7 @@ class JobManager:
     def __init__(self):
         self.supabase = supabase
     
-    async def create_job(self, user_id: str, source: str, **kwargs) -> str:
+    async def create_job(self, client, user_id: str, source: str, **kwargs) -> str:
         data = {
             "user_id": user_id,
             "source": source,
@@ -54,9 +54,9 @@ class JobManager:
             }
         }
         try:
-            res = await self.supabase.table("jobs").insert(data).execute()
+            res = await client.table("jobs").insert(data).execute()
             if not res.data:
-                raise Exception("Falha ao criar job no Supabase")
+                raise Exception("Falha ao criar job no Supabase (RLS Negado?)")
             return res.data[0]["id"]
         except Exception as e:
             print(f"[ERRO] Falha ao criar job: {e}")
@@ -147,10 +147,13 @@ async def convert_audio(
         if source == "url" and not url:
             raise HTTPException(status_code=400, detail="URL é obrigatória quando source=url")
         
+        from app.auth import get_supabase_user_client
+        user_client = await get_supabase_user_client(authorization)
+
         if source == "file" and file:
             content = await file.read()
             file_name = file.filename or "uploaded_file"
-            job_id = await job_manager.create_job(user.id, source, file_name=file_name, 
+            job_id = await job_manager.create_job(user_client, user.id, source, file_name=file_name, 
                                           instrument=instrument, apply_filters=apply_filters, quantize=quantize)
             
             from pathlib import Path as _Path
@@ -159,7 +162,7 @@ async def convert_audio(
             async with aiofiles.open(uploaded_path, 'wb') as f:
                 await f.write(content)
         else:
-            job_id = await job_manager.create_job(user.id, source, url=url, file_name=url,
+            job_id = await job_manager.create_job(user_client, user.id, source, url=url, file_name=url,
                                           instrument=instrument, apply_filters=apply_filters, quantize=quantize)
 
         token = authorization.split(" ")[1] if authorization else None
@@ -184,7 +187,10 @@ async def youtube_to_mp3(
         if not url:
             raise HTTPException(status_code=400, detail="URL é obrigatória")
         
-        job_id = await job_manager.create_job(user.id, source="url", url=url, file_name=url, job_type="mp3", bitrate=bitrate)
+        from app.auth import get_supabase_user_client
+        user_client = await get_supabase_user_client(authorization)
+        
+        job_id = await job_manager.create_job(user_client, user.id, source="url", url=url, file_name=url, job_type="mp3", bitrate=bitrate)
         
         token = authorization.split(" ")[1] if authorization else None
         asyncio.create_task(process_mp3_task(job_id, token))
