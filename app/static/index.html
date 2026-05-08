@@ -848,8 +848,10 @@
             const arrow = document.getElementById(`arrow-${id}`);
             const isHidden = details.classList.contains('hidden');
             
-            // Fecha outros abertos (opcional)
-            // document.querySelectorAll('.history-details').forEach(d => d.classList.add('hidden'));
+            // Ativa o áudio no primeiro clique do usuário para evitar bloqueio do navegador
+            if (Tone.context.state !== 'running') {
+                Tone.start();
+            }
             
             if (isHidden) {
                 details.classList.remove('hidden');
@@ -1138,6 +1140,27 @@
         downloadBtn.addEventListener('click', () => {
             if (currentJobId) downloadFromId(currentJobId, currentJobType);
         });
+
+        // Inicialização
+        initSupabase();
+
+        async function checkHealth() {
+            try {
+                const res = await fetch(`${API_URL}/health`);
+                if (res.ok) {
+                    document.getElementById('status-dot').classList.add('online');
+                    document.getElementById('status-text').textContent = 'Online';
+                } else {
+                    throw new Error();
+                }
+            } catch (err) {
+                document.getElementById('status-dot').classList.remove('online');
+                document.getElementById('status-text').textContent = 'Offline';
+            }
+        }
+        
+        checkHealth();
+        setInterval(checkHealth, 10000);
 
         async function checkStatus(jobId) {
             try {
