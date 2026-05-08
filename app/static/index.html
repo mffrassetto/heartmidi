@@ -1056,9 +1056,12 @@
                         <div style="color: var(--primary); transition: transform 0.2s;" id="arrow-${job.id}">▼</div>
                     </div>
                     <div id="details-${job.id}" class="history-details hidden">
-                        <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
-                            <button class="btn btn-outline" style="padding: 0.5rem; font-size: 0.875rem;" onclick="downloadFromId('${job.id}', '${job.job_type}')">⬇ Baixar</button>
-                            ${isMidi && job.status === 'completed' ? `<button class="btn btn-primary" style="padding: 0.5rem; font-size: 0.875rem;" onclick="loadMidiToCard('${job.id}')">▶ Tocar</button>` : ''}
+                        <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                            <button class="btn btn-outline" style="width: auto; padding: 0.5rem 1rem; font-size: 0.875rem;" onclick="downloadFromId('${job.id}', '${job.job_type}')">⬇ Baixar</button>
+                            ${isMidi && job.status === 'completed' ? `
+                                <button class="btn btn-outline" style="width: auto; padding: 0.5rem 1rem; font-size: 0.875rem;" onclick="loadMidiToCard('${job.id}')">▶ Tocar</button>
+                                <button class="btn btn-primary" style="width: auto; padding: 0.5rem 1rem; font-size: 0.875rem;" onclick="openEditor('${job.id}')">✏️ Editar</button>
+                            ` : ''}
                         </div>
                         <div id="player-container-${job.id}"></div>
                     </div>
@@ -1474,33 +1477,40 @@
 
         window.loadMidiToCard = async (id) => {
             const container = document.getElementById(`player-container-${id}`);
-            container.innerHTML = `
-                <div class="midi-player-container" style="margin-top: 0.5rem; padding: 1rem;">
-                    <div class="player-controls">
-                        <button class="play-btn" id="player-${id}-play-btn" style="width: 32px; height: 32px; font-size: 0.875rem;">▶</button>
-                        <div class="progress-slider">
-                            <div class="progress-slider-fill" id="player-${id}-progress-fill"></div>
+            container.innerHTML = '<p style="font-size: 0.875rem; color: var(--muted);">Carregando áudio...</p>';
+            
+            try {
+                const res = await fetchWithAuth(`${API_URL}/midi-data/${id}`);
+                if (!res.ok) throw new Error('Erro ao carregar dados MIDI');
+                const data = await res.json();
+                
+                container.innerHTML = `
+                    <div class="midi-player-container" style="margin-top: 0.5rem; padding: 1rem;">
+                        <div class="player-controls">
+                            <button class="play-btn" id="player-${id}-play-btn" style="width: 32px; height: 32px; font-size: 0.875rem;">▶</button>
+                            <div class="progress-slider">
+                                <div class="progress-slider-fill" id="player-${id}-progress-fill"></div>
+                            </div>
+                            <span id="player-${id}-player-time" style="font-family: monospace; font-size: 0.75rem;">00:00 / 00:00</span>
                         </div>
-                        <span id="player-${id}-player-time" style="font-family: monospace; font-size: 0.75rem;">00:00 / 00:00</span>
+                        <div class="note-map-container" style="margin-top: 1rem;">
+                            <table class="note-table" style="font-size: 0.75rem;">
+                                <thead><tr><th>Nota</th><th>T(s)</th><th>D(s)</th><th>Vel</th></tr></thead>
+                                <tbody id="player-${id}-note-table-body"></tbody>
+                            </table>
+                            <div class="pagination" id="player-${id}-note-pagination"></div>
+                        </div>
                     </div>
-                    <div class="note-map-container" style="margin-top: 1rem;">
-                        <table class="note-table" style="font-size: 0.75rem;">
-                            <thead><tr><th>Nota</th><th>T(s)</th><th>D(s)</th><th>Vel</th></tr></thead>
-                            <tbody id="player-${id}-note-table-body"></tbody>
-                        </table>
-                        <div class="pagination" id="player-${id}-note-pagination"></div>
-                    </div>
-                </div>
-            `;
-            
-            const res = await fetchWithAuth(`${API_URL}/midi-data/${id}`);
-            const data = await res.json();
-            
-            const player = new HeartmidPlayer(`player-container-${id}`, `player-${id}-`);
-            await player.loadMidi(data.data);
-            
-            document.getElementById(`player-${id}-play-btn`).onclick = () => player.toggle();
-            window.activePlayers[id] = player;
+                `;
+                
+                const player = new HeartmidPlayer(`player-container-${id}`, `player-${id}-`);
+                await player.loadMidi(data.data);
+                
+                document.getElementById(`player-${id}-play-btn`).onclick = () => player.toggle();
+                window.activePlayers[id] = player;
+            } catch (err) {
+                container.innerHTML = `<p style="font-size: 0.875rem; color: #ef4444;">Erro: ${err.message}</p>`;
+            }
         };
 
         async function showResult(data) {
