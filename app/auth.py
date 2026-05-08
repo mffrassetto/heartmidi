@@ -8,12 +8,23 @@ load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
 if not SUPABASE_URL or not SUPABASE_ANON_KEY:
     raise ValueError("SUPABASE_URL e SUPABASE_ANON_KEY devem estar configurados no ambiente.")
 
 async def get_supabase_client() -> AsyncClient:
     return await acreate_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+async def get_supabase_admin_client() -> AsyncClient:
+    """
+    Retorna um cliente administrativo que ignora as políticas de RLS.
+    USE COM CAUTELA. Apenas para operações internas do backend.
+    """
+    if not SUPABASE_SERVICE_ROLE_KEY:
+        # Fallback para anon se a chave admin não estiver configurada
+        return await get_supabase_client()
+    return await acreate_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 async def get_current_user(authorization: Annotated[str | None, Header()] = None):
     if not authorization or not authorization.startswith("Bearer "):

@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import aiofiles
-from app.auth import get_current_user, get_supabase_client, SUPABASE_URL, SUPABASE_ANON_KEY
+from app.auth import get_current_user, get_supabase_client, get_supabase_admin_client, SUPABASE_URL, SUPABASE_ANON_KEY
 from supabase import acreate_client
 
 app = FastAPI(title="heartmid", version="1.0.0")
@@ -63,15 +63,9 @@ class JobManager:
             raise
 
     async def update_job(self, job_id: str, user_token: Optional[str] = None, **kwargs):
-        # Se tivermos um token, usamos um cliente autenticado para respeitar RLS
-        if user_token:
-            try:
-                client = await acreate_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-                client.postgrest.auth(user_token)
-            except:
-                client = await get_supabase_client()
-        else:
-            client = await get_supabase_client()
+        # Usamos o cliente admin para garantir que as atualizações de progresso
+        # funcionem em segundo plano, independente de RLS ou expiração de token.
+        client = await get_supabase_admin_client()
         
         update_data = {}
         metadata_update = {}
@@ -98,7 +92,7 @@ class JobManager:
 
     async def get_job(self, job_id: str):
         try:
-            client = await get_supabase_client()
+            client = await get_supabase_admin_client()
             res = await client.table("jobs").select("*").eq("id", job_id).execute()
             return res.data[0] if res.data else None
         except Exception as e:
@@ -150,13 +144,13 @@ async def convert_audio(
         if source == "url" and not url:
             raise HTTPException(status_code=400, detail="URL é obrigatória quando source=url")
         
-        from app.auth import get_supabase_user_client
-        user_client = await get_supabase_user_client(authorization)
+        from app.auth import get_supabase_admin_client
+        admin_client = await get_supabase_admin_client()
 
         if source == "file" and file:
             content = await file.read()
             file_name = file.filename or "uploaded_file"
-            job_id = await job_manager.create_job(user_client, user.id, source, file_name=file_name, 
+            job_id = await job_manager.create_job(admin_client, user.id, source, file_name=file_name, 
                                           instrument=instrument, apply_filters=apply_filters, quantize=quantize)
             
             from pathlib import Path as _Path
@@ -165,7 +159,7 @@ async def convert_audio(
             async with aiofiles.open(uploaded_path, 'wb') as f:
                 await f.write(content)
         else:
-            job_id = await job_manager.create_job(user_client, user.id, source, url=url, file_name=url,
+            job_id = await job_manager.create_job(admin_client, user.id, source, url=url, file_name=url,
                                           instrument=instrument, apply_filters=apply_filters, quantize=quantize)
 
         token = authorization.split(" ")[1] if authorization else None
@@ -190,10 +184,10 @@ async def youtube_to_mp3(
         if not url:
             raise HTTPException(status_code=400, detail="URL é obrigatória")
         
-        from app.auth import get_supabase_user_client
-        user_client = await get_supabase_user_client(authorization)
+        from app.auth import get_supabase_admin_client
+        admin_client = await get_supabase_admin_client()
         
-        job_id = await job_manager.create_job(user_client, user.id, source="url", url=url, file_name=url, job_type="mp3", bitrate=bitrate)
+        job_id = await job_manager.create_job(admin_client, user.id, source="url", url=url, file_name=url, job_type="mp3", bitrate=bitrate)
         
         token = authorization.split(" ")[1] if authorization else None
         asyncio.create_task(process_mp3_task(job_id, token))
