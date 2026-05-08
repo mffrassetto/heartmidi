@@ -10,8 +10,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import aiofiles
-from app.auth import get_current_user, supabase, SUPABASE_URL, SUPABASE_ANON_KEY
-from supabase import create_async_client
+from app.auth import get_current_user, get_supabase_client, SUPABASE_URL, SUPABASE_ANON_KEY
+from supabase import acreate_client
 
 app = FastAPI(title="heartmid", version="1.0.0")
 
@@ -31,7 +31,7 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 
 class JobManager:
     def __init__(self):
-        self.supabase = supabase
+        pass
     
     async def create_job(self, client, user_id: str, source: str, **kwargs) -> str:
         data = {
@@ -64,13 +64,14 @@ class JobManager:
 
     async def update_job(self, job_id: str, user_token: Optional[str] = None, **kwargs):
         # Se tivermos um token, usamos um cliente autenticado para respeitar RLS
-        client = self.supabase
         if user_token:
             try:
-                client = await create_async_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+                client = await acreate_client(SUPABASE_URL, SUPABASE_ANON_KEY)
                 client.postgrest.auth(user_token)
             except:
-                client = self.supabase
+                client = await get_supabase_client()
+        else:
+            client = await get_supabase_client()
         
         update_data = {}
         metadata_update = {}
@@ -97,9 +98,11 @@ class JobManager:
 
     async def get_job(self, job_id: str):
         try:
-            res = await self.supabase.table("jobs").select("*").eq("id", job_id).execute()
+            client = await get_supabase_client()
+            res = await client.table("jobs").select("*").eq("id", job_id).execute()
             return res.data[0] if res.data else None
-        except Exception:
+        except Exception as e:
+            print(f"[ERRO] get_job: {e}")
             return None
     
     def get_note_count(self, midi_path: Path) -> int:
