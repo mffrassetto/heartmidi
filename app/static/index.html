@@ -778,7 +778,10 @@
 
         historyLink.addEventListener('click', (e) => {
             e.preventDefault();
-            showHistor        async function showHistory(filter = 'all') {
+            showHistory();
+        });
+
+        async function showHistory(filter = 'all') {
             converterView.classList.add('hidden');
             resultView.classList.add('hidden');
             authView.classList.add('hidden');
