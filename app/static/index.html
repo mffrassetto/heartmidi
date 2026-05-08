@@ -727,6 +727,135 @@
             }
         }
 
+        async function fetchWithAuth(url, options = {}) {
+            if (!_supabase) return fetch(url, options);
+            const { data } = await _supabase.auth.getSession();
+            const token = data.session?.access_token;
+            
+            const headers = {
+                ...options.headers,
+                'Authorization': token ? `Bearer ${token}` : ''
+            };
+            
+            return fetch(url, { ...options, headers });
+        }
+
+        function updateProgress(percent, stage) {
+            progressFill.style.width = `${percent}%`;
+            progressText.textContent = stage;
+        }
+
+        window.showConverter = () => {
+            converterView.classList.remove('hidden');
+            resultView.classList.add('hidden');
+            historyView.classList.add('hidden');
+            authView.classList.add('hidden');
+        };
+
+        // Tab Switching
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                const type = tab.dataset.tab;
+                urlInput.classList.toggle('hidden', type !== 'url');
+                fileInput.classList.toggle('hidden', type !== 'file');
+                mp3Input.classList.toggle('hidden', type !== 'mp3');
+                midiOptions.classList.toggle('hidden', type === 'mp3');
+            });
+        });
+
+        // File Drop Zone
+        const dropZone = document.getElementById('drop-zone');
+        const fileInputEl = document.getElementById('audio-file');
+
+        if (dropZone) {
+            dropZone.addEventListener('click', () => fileInputEl.click());
+            
+            fileInputEl.addEventListener('change', () => {
+                if (fileInputEl.files.length > 0) {
+                    dropZone.querySelector('p').textContent = fileInputEl.files[0].name;
+                }
+            });
+
+            ['dragover', 'dragleave', 'drop'].forEach(evt => {
+                dropZone.addEventListener(evt, (e) => {
+                    e.preventDefault();
+                    if (evt === 'dragover') dropZone.style.borderColor = 'var(--primary)';
+                    else dropZone.style.borderColor = 'var(--border-subtle)';
+                    
+                    if (evt === 'drop' && e.dataTransfer.files.length > 0) {
+                        fileInputEl.files = e.dataTransfer.files;
+                        dropZone.querySelector('p').textContent = fileInputEl.files[0].name;
+                    }
+                });
+            });
+        }
+
+        // Conversion Logic
+        convertBtn.addEventListener('click', async () => {
+            const activeTab = document.querySelector('.tab.active').dataset.tab;
+            const instrument = document.getElementById('instrument').value;
+            const applyFilters = document.getElementById('apply-filters').checked;
+            
+            const formData = new FormData();
+            formData.append('instrument', instrument);
+            formData.append('apply_filters', applyFilters);
+            
+            let endpoint = '/convert';
+            
+            if (activeTab === 'url') {
+                const url = document.getElementById('youtube-url').value;
+                if (!url) return alert('Por favor, insira uma URL do YouTube.');
+                formData.append('source', 'url');
+                formData.append('url', url);
+            } else if (activeTab === 'file') {
+                const file = fileInputEl.files[0];
+                if (!file) return alert('Por favor, selecione um arquivo de áudio.');
+                formData.append('source', 'file');
+                formData.append('file', file);
+            } else if (activeTab === 'mp3') {
+                endpoint = '/youtube-to-mp3';
+                const url = document.getElementById('mp3-url').value;
+                const bitrate = document.getElementById('mp3-bitrate').value;
+                if (!url) return alert('Por favor, insira uma URL do YouTube.');
+                formData.append('url', url);
+                formData.append('bitrate', bitrate);
+            }
+            
+            convertBtn.disabled = true;
+            progress.classList.add('active');
+            updateProgress(0, 'Iniciando...');
+            
+            try {
+                const res = await fetchWithAuth(`${API_URL}${endpoint}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || 'Falha na requisição');
+                }
+                
+                const data = await res.json();
+                if (data.job_id) {
+                    currentJobId = data.job_id;
+                    currentJobType = activeTab === 'mp3' ? 'mp3' : 'midi';
+                    if (pollingInterval) clearInterval(pollingInterval);
+                    pollingInterval = setInterval(() => checkStatus(data.job_id), 2000);
+                } else {
+                    throw new Error('ID do trabalho não recebido.');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Erro ao iniciar conversão: ' + err.message);
+                convertBtn.disabled = false;
+                progress.classList.remove('active');
+            }
+        });
+
         document.getElementById('toggle-auth').addEventListener('click', () => {
             isSignUp = !isSignUp;
             document.getElementById('auth-title').textContent = isSignUp ? 'Cadastrar' : 'Entrar';
@@ -1185,8 +1314,5 @@
             }
         }
     </script>
-</body>
-</html>
- </script>
 </body>
 </html>
