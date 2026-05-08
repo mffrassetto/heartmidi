@@ -16,3 +16,4 @@ dist/
 build/
 .env
 .env.local
+cookies.txt
