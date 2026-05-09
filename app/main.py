@@ -373,7 +373,10 @@ async def get_status(job_id: str, user = Depends(get_current_user)):
     if str(job.get("user_id")) != str(user.id):
         raise HTTPException(status_code=403, detail="Acesso negado")
     
-    return job
+    return JSONResponse(
+        content=job,
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate"}
+    )
 
 @app.get("/download/{job_id}")
 async def download_midi(job_id: str, user = Depends(get_current_user)):
@@ -398,7 +401,8 @@ async def download_midi(job_id: str, user = Depends(get_current_user)):
     return FileResponse(
         path=str(file_path),
         media_type="audio/midi",
-        filename=f"heartmid_{job_id}.mid"
+        filename=f"heartmid_{job_id}.mid",
+        headers={"Cache-Control": "no-store"}
     )
 
 @app.get("/download-mp3/{job_id}")
@@ -424,7 +428,8 @@ async def download_mp3(job_id: str, user = Depends(get_current_user)):
     return FileResponse(
         path=str(file_path),
         media_type="audio/mpeg",
-        filename=f"heartmid_audio_{job_id}.mp3"
+        filename=f"heartmid_audio_{job_id}.mp3",
+        headers={"Cache-Control": "no-store"}
     )
 
 @app.get("/midi-data/{job_id}")
@@ -448,12 +453,15 @@ async def get_midi_data(job_id: str, user = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Arquivo .mid não encontrado no disco")
     with open(file_path, "rb") as f:
         data = base64.b64encode(f.read()).decode("utf-8")
-    return {
-        "data": data,
-        "filename": f"heartmid_{job_id}.mid",
-        "note_count": job_manager.get_note_count(file_path),
-        "duration": job_manager.get_duration(file_path)
-    }
+    return JSONResponse(
+        content={
+            "data": data,
+            "filename": f"heartmid_{job_id}.mid",
+            "note_count": job_manager.get_note_count(file_path),
+            "duration": job_manager.get_duration(file_path)
+        },
+        headers={"Cache-Control": "no-store"}
+    )
 
 @app.get("/source/{job_id}")
 async def get_source_audio(job_id: str, user = Depends(get_current_user)):

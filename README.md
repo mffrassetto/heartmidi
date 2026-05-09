@@ -16,6 +16,13 @@ O sistema utiliza o estado da arte em transcrição polifônica de piano (Kong e
     - **Limpeza de Ruído**: Remoção de artefatos menores que 30ms.
     - **Quantização Opcional**: Ajuste rítmico com detecção automática de BPM.
 - **Interface Web Moderna**: Dashboard responsivo para gerenciar conversões.
+- **Arquitetura Cloud-Ready (Async)**: Otimizado para Cloudflare (timeout de 100s) usando Supabase Realtime para progresso ao vivo.
+
+---
+
+## 🏗️ Arquitetura
+O heartmid utiliza uma arquitetura assíncrona orientada a eventos para garantir que o processamento pesado não bloqueie a conexão do usuário. 
+Consulte [ARCHITECTURE.md](./ARCHITECTURE.md) para detalhes técnicos sobre o fluxo de jobs e integração com Realtime.
 
 ---
 
@@ -79,3 +86,9 @@ O pipeline de processamento segue estas etapas:
 
 Desenvolvido por **Maria Fernanda Frassetto - MFF Web Agency**.
 Heartopia é uma marca registrada de seus respectivos proprietários. Este aplicativo fornece ferramentas de compatibilidade e não possui vínculo oficial.
+---
+
+## 📈 Histórico de Atualizações
+
+- **v1.1.0 (Cloudflare Ready)**: Implementação de arquitetura assíncrona com Supabase Realtime, contornando timeouts de 100s e adicionando persistência de sessão para jobs ativos.
+- **v1.0.0**: Lançamento inicial com suporte a YouTube, arquivos locais e filtros Heartopia.

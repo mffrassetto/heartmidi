@@ -846,6 +846,7 @@
         let currentJobId = null;
         let currentJobType = 'midi';
         let pollingInterval = null;
+        let realtimeChannel = null;
         let session = null;
         let isSignUp = false;
 
@@ -993,8 +994,13 @@
                 if (data.job_id) {
                     currentJobId = data.job_id;
                     currentJobType = activeTab === 'mp3' ? 'mp3' : 'midi';
+                    
+                    // Inicia escuta em tempo real (Arquitetura Cloudflare-ready)
+                    subscribeToJob(data.job_id);
+                    
+                    // Fallback de polling (menos frequente)
                     if (pollingInterval) clearInterval(pollingInterval);
-                    pollingInterval = setInterval(() => checkStatus(data.job_id), 2000);
+                    pollingInterval = setInterval(() => checkStatus(data.job_id), 10000); 
                 } else {
                     throw new Error('ID do trabalho não recebido.');
                 }
@@ -1681,7 +1687,30 @@
         });
 
         // Inicialização
-        initSupabase();
+        initSupabase().then(() => {
+            checkActiveJob();
+        });
+
+        function checkActiveJob() {
+            const savedJobId = localStorage.getItem('currentJobId');
+            const savedJobType = localStorage.getItem('currentJobType');
+            
+            if (savedJobId && session) {
+                console.log(`[SESSION] Resuming active job: ${savedJobId}`);
+                currentJobId = savedJobId;
+                currentJobType = savedJobType || 'midi';
+                
+                // Mostra a barra de progresso imediatamente
+                progress.classList.add('active');
+                updateProgress(0, 'Retomando conexão...');
+                
+                subscribeToJob(savedJobId);
+                
+                // Fallback de polling
+                if (pollingInterval) clearInterval(pollingInterval);
+                pollingInterval = setInterval(() => checkStatus(savedJobId), 10000);
+            }
+        }
 
         async function checkHealth() {
             try {
@@ -1706,21 +1735,73 @@
                 const res = await fetchWithAuth(`${API_URL}/status/${jobId}`);
                 if (!res.ok) return;
                 const data = await res.json();
-
-                updateProgress(data.progress, data.stage);
-
-                if (data.status === 'completed') {
-                    clearInterval(pollingInterval);
-                    currentJobId = data.id; // Garante que temos o ID correto
-                    showResult(data);
-                } else if (data.status === 'error') {
-                    clearInterval(pollingInterval);
-                    alert('Erro: ' + data.error);
-                    convertBtn.disabled = false;
-                    progress.classList.remove('active');
-                }
+                handleJobUpdate(data);
             } catch (err) {
                 console.error('Status check failed:', err);
+            }
+        }
+
+        function handleJobUpdate(data) {
+            updateProgress(data.progress, data.stage);
+
+            if (data.status === 'completed') {
+                stopListening();
+                localStorage.removeItem('currentJobId');
+                localStorage.removeItem('currentJobType');
+                currentJobId = data.id;
+                showResult(data);
+            } else if (data.status === 'error') {
+                stopListening();
+                localStorage.removeItem('currentJobId');
+                localStorage.removeItem('currentJobType');
+                alert('Erro: ' + data.error);
+                convertBtn.disabled = false;
+                progress.classList.remove('active');
+            }
+        }
+
+        function subscribeToJob(jobId) {
+            if (!_supabase) return;
+            
+            localStorage.setItem('currentJobId', jobId);
+            localStorage.setItem('currentJobType', currentJobType);
+            
+            stopListening(); // Limpa escutas anteriores
+
+            console.log(`[REALTIME] Subscribing to job: ${jobId}`);
+            
+            realtimeChannel = _supabase
+                .channel(`job-${jobId}`)
+                .on(
+                    'postgres_changes',
+                    {
+                        event: 'UPDATE',
+                        schema: 'public',
+                        table: 'jobs',
+                        filter: `id=eq.${jobId}`
+                    },
+                    (payload) => {
+                        console.log('[REALTIME] Update received:', payload.new);
+                        handleJobUpdate(payload.new);
+                    }
+                )
+                .subscribe((status) => {
+                    console.log(`[REALTIME] Subscription status: ${status}`);
+                    if (status === 'SUBSCRIBED') {
+                        // Faz um check inicial para garantir que não perdemos o começo
+                        checkStatus(jobId);
+                    }
+                });
+        }
+
+        function stopListening() {
+            if (realtimeChannel) {
+                _supabase.removeChannel(realtimeChannel);
+                realtimeChannel = null;
+            }
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
             }
         }
     </script>
