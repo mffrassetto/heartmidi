@@ -573,7 +573,7 @@
                 </div>
                 <!-- Turnstile Widget -->
                 <div id="captcha-container" style="margin-top: 1rem; display: flex; justify-content: center;">
-                    <div class="cf-turnstile" data-sitekey="1x00000000000000000000AA"></div>
+                    <div id="turnstile-widget"></div>
                 </div>
                 <button class="btn btn-primary" id="auth-btn" style="margin-top: 1rem;">Entrar</button>
                 <p style="margin-top: 1.5rem; text-align: center; cursor: pointer; color: var(--primary); font-size: 0.875rem;" id="toggle-auth">Não tem conta? Cadastre-se</p>
@@ -798,6 +798,7 @@
     <script>
         let SUPABASE_URL = '';
         let SUPABASE_ANON_KEY = '';
+        let TURNSTILE_SITE_KEY = '';
         let _supabase = null;
         
         const API_URL = '';
@@ -810,8 +811,16 @@
                 if (config.supabase_url && config.supabase_anon_key) {
                     SUPABASE_URL = config.supabase_url;
                     SUPABASE_ANON_KEY = config.supabase_anon_key;
+                    TURNSTILE_SITE_KEY = config.turnstile_site_key;
                     _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
                     console.log("[CONFIG] Supabase initialized from server env");
+                    
+                    if (TURNSTILE_SITE_KEY && window.turnstile) {
+                        turnstile.render('#turnstile-widget', {
+                            sitekey: TURNSTILE_SITE_KEY,
+                            theme: 'dark',
+                        });
+                    }
                     checkSession();
                 } else {
                     console.error("[CONFIG] Chaves do Supabase não encontradas no servidor.");

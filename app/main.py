@@ -131,7 +131,8 @@ async def health():
 async def get_config():
     return {
         "supabase_url": os.getenv("SUPABASE_URL"),
-        "supabase_anon_key": os.getenv("SUPABASE_ANON_KEY")
+        "supabase_anon_key": os.getenv("SUPABASE_ANON_KEY"),
+        "turnstile_site_key": os.getenv("TURNSTILE_SITE_KEY")
     }
 
 @app.post("/convert")
