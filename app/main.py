@@ -132,7 +132,8 @@ async def get_config():
     return {
         "supabase_url": os.getenv("SUPABASE_URL"),
         "supabase_anon_key": os.getenv("SUPABASE_ANON_KEY"),
-        "turnstile_site_key": os.getenv("TURNSTILE_SITE_KEY")
+        "turnstile_site_key": os.getenv("TURNSTILE_SITE_KEY"),
+        "google_analytics_id": os.getenv("GOOGLE_ANALYTICS_ID")
     }
 
 @app.post("/convert")

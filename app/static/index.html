@@ -799,6 +799,7 @@
         let SUPABASE_URL = '';
         let SUPABASE_ANON_KEY = '';
         let TURNSTILE_SITE_KEY = '';
+        let GOOGLE_ANALYTICS_ID = '';
         let _supabase = null;
         
         const API_URL = '';
@@ -812,6 +813,8 @@
                     SUPABASE_URL = config.supabase_url;
                     SUPABASE_ANON_KEY = config.supabase_anon_key;
                     TURNSTILE_SITE_KEY = config.turnstile_site_key;
+                    GOOGLE_ANALYTICS_ID = config.google_analytics_id;
+
                     _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
                     console.log("[CONFIG] Supabase initialized from server env");
                     
@@ -821,6 +824,11 @@
                             theme: 'dark',
                         });
                     }
+
+                    if (GOOGLE_ANALYTICS_ID) {
+                        initGA(GOOGLE_ANALYTICS_ID);
+                    }
+
                     checkSession();
                 } else {
                     console.error("[CONFIG] Chaves do Supabase não encontradas no servidor.");
@@ -828,6 +836,21 @@
             } catch (err) {
                 console.error("[CONFIG] Erro ao buscar configuração:", err);
             }
+        }
+
+        function initGA(id) {
+            if (!id || id === 'G-XXXXXXXXXX') return;
+            const script = document.createElement('script');
+            script.async = true;
+            script.src = `https://www.googletagmanager.com/gtag/js?id=${id}`;
+            document.head.appendChild(script);
+
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            window.gtag = gtag;
+            gtag('js', new Date());
+            gtag('config', id);
+            console.log("[CONFIG] Google Analytics initialized:", id);
         }
 
         const tabs = document.querySelectorAll('.tab');
