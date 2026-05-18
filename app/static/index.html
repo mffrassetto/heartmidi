@@ -78,11 +78,14 @@
 
         /* Main Card */
         .card {
-            background: var(--surface-container);
-            border: 1px solid var(--border-subtle);
+            background: rgba(30, 32, 32, 0.65);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 1rem;
             padding: 2rem;
             margin-bottom: 1.5rem;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
         }
 
         h1 {
@@ -108,10 +111,16 @@
             padding: 0.75rem 1.5rem;
             border-radius: 0.5rem;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             border: 1px solid var(--border-subtle);
             background: transparent;
             color: var(--muted);
+        }
+
+        .tab:hover:not(.active) {
+            color: var(--on-surface);
+            border-color: rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.03);
         }
 
         .tab.active {
@@ -147,6 +156,7 @@
         input:focus, select:focus {
             outline: none;
             border-color: var(--primary);
+            box-shadow: 0 0 10px rgba(34, 197, 94, 0.2);
         }
 
         /* Checkbox */
@@ -174,7 +184,7 @@
             font-size: 1rem;
             font-weight: 500;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             border: none;
             width: 100%;
         }
@@ -185,12 +195,16 @@
         }
 
         .btn-primary:hover {
-            filter: brightness(1.1);
+            filter: brightness(1.15);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(34, 197, 94, 0.35);
         }
 
         .btn-primary:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
         }
 
         /* Progress */
@@ -272,6 +286,13 @@
             background: transparent;
             border: 1px solid var(--border-subtle);
             color: var(--on-surface);
+        }
+
+        .btn-outline:hover {
+            background: rgba(255, 255, 255, 0.05);
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
 
         /* Hidden */
@@ -408,15 +429,19 @@
 
         /* History Enhancements */
         .history-card {
-            background: var(--surface-dim);
+            background: rgba(18, 20, 20, 0.4);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
             padding: 1rem;
             border-radius: 0.75rem;
             border: 1px solid var(--border-subtle);
-            transition: all 0.2s;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .history-card:hover {
             border-color: var(--primary);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(34, 197, 94, 0.12);
         }
 
         .history-header {
@@ -579,7 +604,7 @@
                     <div class="status-dot" id="status-dot"></div>
                     <span id="status-text">Offline</span>
                 </div>
-                <a href="#" id="history-link" class="hidden">History</a>
+                <a href="#" id="history-link" class="hidden">Histórico</a>
                 <a href="#" id="logout-btn" class="hidden">Logout</a>
                 <a href="#" id="login-link">Login</a>
             </nav>
@@ -687,21 +712,21 @@
         <main id="result-view" class="hidden">
             <div class="card result-card active">
                 <div class="result-icon">✓</div>
-                <h1>Analysis Complete</h1>
-                <p class="subtitle">Your audio file has been successfully processed into MIDI data.</p>
+                <h1>Análise Concluída</h1>
+                <p class="subtitle">Seu arquivo de áudio foi processado com sucesso em dados MIDI.</p>
 
                 <div class="result-stats">
                     <div class="stat">
                         <div class="stat-value" id="file-name">-</div>
-                        <div class="stat-label">Source Audio</div>
+                        <div class="stat-label">Áudio de Origem</div>
                     </div>
                     <div class="stat">
                         <div class="stat-value" id="duration">-</div>
-                        <div class="stat-label">Duration</div>
+                        <div class="stat-label">Duração</div>
                     </div>
                     <div class="stat">
                         <div class="stat-value" id="notes">-</div>
-                        <div class="stat-label">Detected Notes</div>
+                        <div class="stat-label">Notas Detectadas</div>
                     </div>
                 </div>
 
@@ -782,15 +807,15 @@
                 </div>
 
                 <div class="editor-toolbar">
-                    <button class="tool-btn active" id="tool-select" title="Selecionar (S)">Select</button>
-                    <button class="tool-btn" id="tool-pencil" title="Lápis (P)">Pencil</button>
-                    <button class="tool-btn" id="tool-eraser" title="Borracha (E)">Eraser</button>
+                    <button class="tool-btn active" id="tool-select" title="Selecionar (S)">Selecionar</button>
+                    <button class="tool-btn" id="tool-pencil" title="Lápis (P)">Lápis</button>
+                    <button class="tool-btn" id="tool-eraser" title="Borracha (E)">Borracha</button>
                     <button class="btn btn-outline" id="btn-trim-silence" style="width: auto; padding: 0.25rem 0.75rem; font-size: 0.875rem; border-color: rgba(34, 197, 94, 0.4); color: #4be277; margin-left: 0.5rem;" onclick="editorInstance.trimStartSilence()" title="Remove o silêncio do início deslocando as notas">✂️ Cortar Silêncio Inicial</button>
                     <div style="flex-grow: 1;"></div>
                     <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--muted); font-size: 0.875rem;">
-                        <span>Snap:</span>
+                        <span>Grade (Snap):</span>
                         <select id="editor-snap" style="width: auto; padding: 0.25rem; background: var(--surface-dim); color: white; border: 1px solid var(--border-subtle); border-radius: 4px;">
-                            <option value="0">Off</option>
+                            <option value="0">Desativado</option>
                             <option value="1/4">1/4</option>
                             <option value="1/8">1/8</option>
                             <option value="1/16" selected>1/16</option>
