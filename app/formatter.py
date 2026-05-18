@@ -26,7 +26,15 @@ def clamp_to_heartopia_scale(midi_path: Path, output_path: Path) -> Path:
     for track in mid.tracks:
         for msg in track:
             if msg.type in ['note_on', 'note_off']:
-                # Find nearest allowed note
+                # 1. Transpose by octaves to fit within the Heartopia range [60, 96]
+                if msg.note < 60:
+                    while msg.note < 60:
+                        msg.note += 12
+                elif msg.note > 96:
+                    while msg.note > 96:
+                        msg.note -= 12
+                
+                # 2. Find nearest allowed note (C Major keys in C4-C7)
                 idx = (np.abs(allowed - msg.note)).argmin()
                 msg.note = int(allowed[idx])
                 
