@@ -605,6 +605,7 @@
                     <span id="status-text">Offline</span>
                 </div>
                 <a href="#" id="history-link" class="hidden">Histórico</a>
+                <a href="#" id="admin-link" class="hidden" style="color: var(--primary);">Painel Admin</a>
                 <a href="#" id="logout-btn" class="hidden">Logout</a>
                 <a href="#" id="login-link">Login</a>
             </nav>
@@ -621,6 +622,15 @@
                 <div class="input-group">
                     <label>Senha</label>
                     <input type="password" id="auth-password" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: var(--surface-dim); color: white; border: 1px solid var(--border-subtle);">
+                </div>
+                <!-- Invite Code Field (Only shown in Sign Up) -->
+                <div class="input-group hidden" id="invite-code-group">
+                    <label>Código de Convite</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" id="auth-invite-code" placeholder="Ex: HM-ABCD-1234" style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; background: var(--surface-dim); color: white; border: 1px solid var(--border-subtle); text-transform: uppercase;">
+                        <button class="btn btn-outline" id="btn-validate-invite" style="width: auto; padding: 0 1rem;">Validar</button>
+                    </div>
+                    <div id="invite-feedback" style="font-size: 0.75rem; margin-top: 0.25rem;"></div>
                 </div>
                 <!-- Turnstile Widget -->
                 <div id="captcha-container" style="margin-top: 1rem; display: flex; justify-content: center;">
@@ -842,6 +852,59 @@
             </div>
         </main>
 
+        <!-- Admin View -->
+        <main id="admin-view" class="hidden">
+            <div class="card" style="margin-bottom: 2rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <div>
+                        <h1>Painel Admin</h1>
+                        <p class="subtitle" style="margin-bottom: 0;">Métricas e Gerenciamento de Convites</p>
+                    </div>
+                    <button class="btn btn-outline" style="width: auto; padding: 0.5rem 1rem;" onclick="showConverter()">Voltar</button>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                    <div class="stat-card" style="background: rgba(255,255,255,0.03); padding: 1.5rem; border-radius: 0.75rem; border: 1px solid var(--border-subtle); text-align: center;">
+                        <div style="font-size: 2.5rem; font-weight: bold; color: var(--primary);" id="stat-users">-</div>
+                        <div style="color: var(--muted); font-size: 0.875rem; text-transform: uppercase; letter-spacing: 1px;">Usuários Cadastrados</div>
+                    </div>
+                    <div class="stat-card" style="background: rgba(255,255,255,0.03); padding: 1.5rem; border-radius: 0.75rem; border: 1px solid var(--border-subtle); text-align: center;">
+                        <div style="font-size: 2.5rem; font-weight: bold; color: var(--primary);" id="stat-active-jobs">-</div>
+                        <div style="color: var(--muted); font-size: 0.875rem; text-transform: uppercase; letter-spacing: 1px;">Jobs em Processamento</div>
+                    </div>
+                    <div class="stat-card" style="background: rgba(255,255,255,0.03); padding: 1.5rem; border-radius: 0.75rem; border: 1px solid var(--border-subtle); text-align: center;">
+                        <div style="font-size: 2.5rem; font-weight: bold; color: var(--primary);" id="stat-total-jobs">-</div>
+                        <div style="color: var(--muted); font-size: 0.875rem; text-transform: uppercase; letter-spacing: 1px;">Histórico Total de Jobs</div>
+                    </div>
+                </div>
+
+                <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle); padding: 1.5rem; border-radius: 0.75rem; margin-bottom: 2rem;">
+                    <h3 style="margin-bottom: 1rem;">Gerar Novo Convite</h3>
+                    <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+                        <div class="input-group" style="margin-bottom: 0; flex: 1; min-width: 150px;">
+                            <label>Limite de Cadastros</label>
+                            <input type="number" id="invite-max-uses" value="1" min="1" style="background: var(--surface-dim); border: 1px solid var(--border-subtle); padding: 0.75rem; border-radius: 0.5rem; color: white; width: 100%;">
+                        </div>
+                        <div class="input-group" style="margin-bottom: 0; flex: 1; min-width: 150px;">
+                            <label>Validade (Dias, Opcional)</label>
+                            <input type="number" id="invite-expires" placeholder="Infinito" min="1" style="background: var(--surface-dim); border: 1px solid var(--border-subtle); padding: 0.75rem; border-radius: 0.5rem; color: white; width: 100%;">
+                        </div>
+                        <div class="input-group" style="margin-bottom: 0; flex: 1; min-width: 150px;">
+                            <label>Código Customizado (Opcional)</label>
+                            <input type="text" id="invite-custom-code" placeholder="Ex: PROMO-123" style="background: var(--surface-dim); border: 1px solid var(--border-subtle); padding: 0.75rem; border-radius: 0.5rem; color: white; width: 100%;">
+                        </div>
+                        <button class="btn btn-primary" style="width: auto; height: 46px; padding: 0 1.5rem;" id="btn-generate-invite">Criar Código</button>
+                    </div>
+                </div>
+                
+                <h3>Gerenciamento de Códigos</h3>
+                <div id="admin-invites-list" style="margin-top: 1rem; display: grid; gap: 1rem;">
+                    <!-- Invites injected here -->
+                    <div style="color: var(--muted); text-align: center; padding: 2rem;">Carregando convites...</div>
+                </div>
+            </div>
+        </main>
+
         <footer style="text-align: center; padding: 2rem; color: var(--muted); font-size: 0.875rem;">
             <p>© 2024 Maria Fernanda Frassetto - MFF Web Agency. MIDI compatibility for Heartopia.</p>
         </footer>
@@ -934,30 +997,57 @@
         let session = null;
         let isSignUp = false;
 
+        let isAdmin = false;
+
         // Auth Logic
         async function checkSession() {
             if (!_supabase) return;
             const { data } = await _supabase.auth.getSession();
             session = data.session;
+            if (session) {
+                // Check if user is admin silently
+                try {
+                    const res = await fetchWithAuth(`${API_URL}/admin/stats`);
+                    isAdmin = res.ok;
+                } catch (e) {
+                    isAdmin = false;
+                }
+            } else {
+                isAdmin = false;
+            }
             updateUI();
         }
 
         function updateUI() {
+            const adminLink = document.getElementById('admin-link');
+            const adminView = document.getElementById('admin-view');
             if (session) {
                 loginLink.classList.add('hidden');
                 logoutBtn.classList.remove('hidden');
                 historyLink.classList.remove('hidden');
                 authView.classList.add('hidden');
-                if (historyView.classList.contains('hidden') && resultView.classList.contains('hidden')) {
+                if (isAdmin) {
+                    adminLink.classList.remove('hidden');
+                } else {
+                    adminLink.classList.add('hidden');
+                }
+                
+                if (historyView.classList.contains('hidden') && 
+                    resultView.classList.contains('hidden') && 
+                    (adminView ? adminView.classList.contains('hidden') : true) &&
+                    (editorView ? editorView.classList.contains('hidden') : true)) {
                     converterView.classList.remove('hidden');
                 }
             } else {
                 loginLink.classList.remove('hidden');
                 logoutBtn.classList.add('hidden');
                 historyLink.classList.add('hidden');
+                adminLink.classList.add('hidden');
                 converterView.classList.add('hidden');
                 resultView.classList.add('hidden');
                 historyView.classList.add('hidden');
+                if (adminView) adminView.classList.add('hidden');
+                if (editorView) editorView.classList.add('hidden');
                 authView.classList.remove('hidden');
             }
         }
@@ -985,6 +1075,8 @@
             resultView.classList.add('hidden');
             historyView.classList.add('hidden');
             authView.classList.add('hidden');
+            const adminView = document.getElementById('admin-view');
+            if (adminView) adminView.classList.add('hidden');
         };
 
         // Tab Switching
@@ -1101,12 +1193,47 @@
             document.getElementById('auth-title').textContent = isSignUp ? 'Cadastrar' : 'Entrar';
             document.getElementById('auth-btn').textContent = isSignUp ? 'Criar Conta' : 'Entrar';
             document.getElementById('toggle-auth').textContent = isSignUp ? 'Já tem conta? Entre aqui' : 'Não tem conta? Cadastre-se';
+            
+            const inviteGroup = document.getElementById('invite-code-group');
+            if (isSignUp) {
+                inviteGroup.classList.remove('hidden');
+            } else {
+                inviteGroup.classList.add('hidden');
+            }
+        });
+        
+        document.getElementById('btn-validate-invite').addEventListener('click', async () => {
+            const code = document.getElementById('auth-invite-code').value.trim();
+            const feedback = document.getElementById('invite-feedback');
+            if (!code) {
+                feedback.textContent = 'Digite um código primeiro.';
+                feedback.style.color = '#ef4444'; // red
+                return;
+            }
+            feedback.textContent = 'Validando...';
+            feedback.style.color = 'var(--muted)';
+            
+            try {
+                const res = await fetch(`${API_URL}/invites/validate/${code}`);
+                const data = await res.json();
+                if (data.valid) {
+                    feedback.textContent = '✅ Código válido!';
+                    feedback.style.color = '#22c55e'; // green
+                } else {
+                    feedback.textContent = `❌ ${data.reason}`;
+                    feedback.style.color = '#ef4444';
+                }
+            } catch (e) {
+                feedback.textContent = '❌ Erro ao validar.';
+                feedback.style.color = '#ef4444';
+            }
         });
 
         document.getElementById('auth-btn').addEventListener('click', async () => {
             const email = document.getElementById('auth-email').value;
             const password = document.getElementById('auth-password').value;
             const captchaToken = turnstile.getResponse();
+            const inviteCode = document.getElementById('auth-invite-code').value.trim();
 
             if (!captchaToken && isSignUp) {
                 alert('Por favor, complete o CAPTCHA.');
@@ -1118,6 +1245,9 @@
                     email, 
                     password,
                     options: {
+                        data: {
+                            invite_code: inviteCode
+                        },
                         emailRedirectTo: window.location.origin,
                         captchaToken: captchaToken
                     }
@@ -1142,12 +1272,153 @@
             converterView.classList.add('hidden');
             historyView.classList.add('hidden');
             resultView.classList.add('hidden');
+            const adminView = document.getElementById('admin-view');
+            if (adminView) adminView.classList.add('hidden');
+            if (editorView) editorView.classList.add('hidden');
             authView.classList.remove('hidden');
         });
 
         historyLink.addEventListener('click', (e) => {
             e.preventDefault();
             showHistory();
+        });
+        
+        document.getElementById('admin-link').addEventListener('click', (e) => {
+            e.preventDefault();
+            showAdminDashboard();
+        });
+
+        async function showAdminDashboard() {
+            converterView.classList.add('hidden');
+            resultView.classList.add('hidden');
+            historyView.classList.add('hidden');
+            authView.classList.add('hidden');
+            if (editorView) editorView.classList.add('hidden');
+            
+            const adminView = document.getElementById('admin-view');
+            adminView.classList.remove('hidden');
+            
+            try {
+                // Fetch stats
+                const statRes = await fetchWithAuth(`${API_URL}/admin/stats`);
+                if (statRes.ok) {
+                    const stats = await statRes.json();
+                    document.getElementById('stat-users').textContent = stats.total_users;
+                    document.getElementById('stat-active-jobs').textContent = stats.active_jobs;
+                    document.getElementById('stat-total-jobs').textContent = stats.total_jobs;
+                }
+                
+                loadAdminInvites();
+            } catch (e) {
+                console.error(e);
+            }
+        }
+        
+        async function loadAdminInvites() {
+            const list = document.getElementById('admin-invites-list');
+            try {
+                const res = await fetchWithAuth(`${API_URL}/admin/invites`);
+                if (!res.ok) throw new Error('Falha');
+                const invites = await res.json();
+                
+                if (invites.length === 0) {
+                    list.innerHTML = '<div style="color: var(--muted); padding: 1rem;">Nenhum convite gerado.</div>';
+                    return;
+                }
+                
+                list.innerHTML = invites.map(inv => {
+                    const statusBadge = inv.is_active 
+                        ? (inv.expires_at && new Date(inv.expires_at) < new Date() ? '<span class="badge badge-failed">Expirado</span>' : '<span class="badge badge-completed">Ativo</span>')
+                        : '<span class="badge badge-failed">Inativo</span>';
+                    
+                    const usagesHtml = inv.used_by.map(u => `<div style="font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem;">↳ ${u.email} (${new Date(u.date).toLocaleDateString()})</div>`).join('');
+                        
+                    return `
+                    <div class="history-card" style="padding: 1rem; display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+                        <div>
+                            <div style="font-weight: bold; font-size: 1.125rem; color: var(--primary); font-family: monospace;">${inv.code}</div>
+                            <div style="font-size: 0.875rem; color: var(--muted); margin-top: 0.25rem;">
+                                Usos: ${inv.uses_count} / ${inv.max_uses || '∞'} | Criado em: ${new Date(inv.created_at).toLocaleDateString()}
+                            </div>
+                            <div style="margin-top: 0.5rem;">${statusBadge}</div>
+                            ${usagesHtml ? `<div style="margin-top: 1rem; border-top: 1px solid var(--border-subtle); padding-top: 0.5rem;">${usagesHtml}</div>` : ''}
+                        </div>
+                        ${inv.is_active ? `
+                        <button class="btn btn-outline" style="width: auto; padding: 0.25rem 0.5rem; border-color: #ef4444; color: #ef4444;" onclick="deactivateInvite('${inv.id}')">Desativar</button>
+                        ` : ''}
+                    </div>
+                    `;
+                }).join('');
+            } catch (e) {
+                list.innerHTML = '<div style="color: #ef4444; padding: 1rem;">Erro ao carregar convites.</div>';
+            }
+        }
+        
+        document.getElementById('btn-generate-invite').addEventListener('click', async () => {
+            const maxUses = document.getElementById('invite-max-uses').value;
+            const expires = document.getElementById('invite-expires').value;
+            const customCode = document.getElementById('invite-custom-code').value.trim();
+            
+            const btn = document.getElementById('btn-generate-invite');
+            btn.disabled = true;
+            btn.textContent = 'Gerando...';
+            
+            try {
+                const res = await fetchWithAuth(`${API_URL}/admin/invites`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        max_uses: maxUses ? parseInt(maxUses) : null,
+                        expires_in_days: expires ? parseInt(expires) : null,
+                        custom_code: customCode || null
+                    })
+                });
+                
+                if (res.ok) {
+                    document.getElementById('invite-custom-code').value = '';
+                    await loadAdminInvites();
+                } else {
+                    alert('Erro ao gerar convite.');
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Criar Código';
+            }
+        });
+        
+        window.deactivateInvite = async (id) => {
+            if (!confirm('Desativar este convite?')) return;
+            try {
+                const res = await fetchWithAuth(`${API_URL}/admin/invites/${id}/deactivate`, { method: 'POST' });
+                if (res.ok) await loadAdminInvites();
+            } catch (e) {
+                alert('Erro ao desativar.');
+            }
+        }
+        
+        // Auto-fill invite from URL param if present
+        window.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const inviteParam = urlParams.get('invite');
+            if (inviteParam) {
+                document.getElementById('auth-invite-code').value = inviteParam;
+                isSignUp = true;
+                document.getElementById('auth-title').textContent = 'Cadastrar';
+                document.getElementById('auth-btn').textContent = 'Criar Conta';
+                document.getElementById('toggle-auth').textContent = 'Já tem conta? Entre aqui';
+                document.getElementById('invite-code-group').classList.remove('hidden');
+                
+                // Show auth view
+                converterView.classList.add('hidden');
+                historyView.classList.add('hidden');
+                resultView.classList.add('hidden');
+                const adminView = document.getElementById('admin-view');
+                if (adminView) adminView.classList.add('hidden');
+                if (editorView) editorView.classList.add('hidden');
+                authView.classList.remove('hidden');
+            }
         });
 
         async function showHistory(filter = 'all') {

@@ -57,3 +57,17 @@ async def get_supabase_user_client(authorization: Annotated[str | None, Header()
     client = await get_supabase_client()
     client.postgrest.auth(token)
     return client
+
+async def get_current_admin(user = Depends(get_current_user)):
+    """Verifica se o usuário logado possui a role 'admin'"""
+    try:
+        client = await get_supabase_admin_client()
+        res = await client.table("profiles").select("role").eq("id", user.id).execute()
+        if not res.data or res.data[0].get("role") != "admin":
+            raise HTTPException(status_code=403, detail="Acesso administrativo negado")
+        return user
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[AUTH ADMIN ERROR] {str(e)}")
+        raise HTTPException(status_code=403, detail="Acesso administrativo negado")

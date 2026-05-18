@@ -10,10 +10,21 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import aiofiles
-from app.auth import get_current_user, get_supabase_client, get_supabase_admin_client, SUPABASE_URL, SUPABASE_ANON_KEY
+from app.auth import get_current_user, get_current_admin, get_supabase_client, get_supabase_admin_client, SUPABASE_URL, SUPABASE_ANON_KEY
 from supabase import acreate_client
 
+import random
+import string
+from datetime import datetime, timedelta, timezone
+
+from pydantic import BaseModel
+
 app = FastAPI(title="heartmid", version="1.0.0")
+
+class InviteCreateReq(BaseModel):
+    max_uses: Optional[int] = 1
+    expires_in_days: Optional[int] = None
+    custom_code: Optional[str] = None
 
 app.add_middleware(
     CORSMiddleware,
@@ -605,3 +616,131 @@ async def get_source_audio(job_id: str, user = Depends(get_current_user)):
         media_type=mt,
         filename=cand.name
     )
+
+# --- ADMIN AND INVITE ROUTES ---
+
+@app.get("/admin/stats")
+async def get_admin_stats(admin_user=Depends(get_current_admin)):
+    try:
+        client = await get_supabase_admin_client()
+        
+        # 1. Total users
+        res_users = await client.table("profiles").select("id", count="exact").execute()
+        total_users = res_users.count if hasattr(res_users, 'count') else len(res_users.data)
+        
+        # 2. Total active jobs (processing or pending)
+        res_jobs = await client.table("jobs").select("id").in_("status", ["processing", "pending"]).execute()
+        active_jobs = len(res_jobs.data)
+        
+        # 3. Total jobs
+        res_all_jobs = await client.table("jobs").select("id", count="exact").execute()
+        total_jobs = res_all_jobs.count if hasattr(res_all_jobs, 'count') else len(res_all_jobs.data)
+        
+        return {
+            "total_users": total_users,
+            "active_jobs": active_jobs,
+            "total_jobs": total_jobs
+        }
+    except Exception as e:
+        print(f"[ADMIN STATS ERROR] {str(e)}")
+        raise HTTPException(status_code=500, detail="Erro ao buscar estatísticas")
+
+@app.get("/admin/invites")
+async def list_invites(admin_user=Depends(get_current_admin)):
+    try:
+        client = await get_supabase_admin_client()
+        
+        # Get invites
+        res_invites = await client.table("invite_codes").select("*").order("created_at", desc=True).execute()
+        invites = res_invites.data
+        
+        # Get usages
+        res_usages = await client.table("invited_users").select("*").order("created_at", desc=True).execute()
+        usages = res_usages.data
+        
+        # Group usages by invite code
+        usages_map = {}
+        for usage in usages:
+            code_id = usage.get("invite_code_id")
+            if code_id not in usages_map:
+                usages_map[code_id] = []
+            usages_map[code_id].append({
+                "email": usage.get("registered_email"),
+                "date": usage.get("created_at")
+            })
+            
+        for inv in invites:
+            inv["used_by"] = usages_map.get(inv["id"], [])
+            
+        return invites
+    except Exception as e:
+        print(f"[ADMIN INVITES ERROR] {str(e)}")
+        raise HTTPException(status_code=500, detail="Erro ao buscar convites")
+
+@app.post("/admin/invites")
+async def create_invite(req: InviteCreateReq, admin_user=Depends(get_current_admin)):
+    try:
+        client = await get_supabase_admin_client()
+        
+        code = req.custom_code
+        if not code:
+            part1 = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+            part2 = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+            code = f"HM-{part1}-{part2}"
+            
+        expires_at = None
+        if req.expires_in_days:
+            expires_at = (datetime.now(timezone.utc) + timedelta(days=req.expires_in_days)).isoformat()
+            
+        data = {
+            "code": code,
+            "created_by": admin_user.id,
+            "max_uses": req.max_uses,
+            "expires_at": expires_at
+        }
+        
+        res = await client.table("invite_codes").insert(data).execute()
+        return res.data[0]
+    except Exception as e:
+        print(f"[ADMIN CREATE INVITE ERROR] {str(e)}")
+        raise HTTPException(status_code=500, detail="Erro ao criar convite")
+
+@app.post("/admin/invites/{invite_id}/deactivate")
+async def deactivate_invite(invite_id: str, admin_user=Depends(get_current_admin)):
+    try:
+        client = await get_supabase_admin_client()
+        res = await client.table("invite_codes").update({"is_active": False}).eq("id", invite_id).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Convite não encontrado")
+        return {"success": True, "message": "Convite desativado"}
+    except Exception as e:
+        print(f"[ADMIN DEACTIVATE ERROR] {str(e)}")
+        raise HTTPException(status_code=500, detail="Erro ao desativar convite")
+
+@app.get("/invites/validate/{code}")
+async def validate_invite(code: str):
+    try:
+        client = await get_supabase_admin_client()
+        res = await client.table("invite_codes").select("*").eq("code", code).execute()
+        
+        if not res.data:
+            return {"valid": False, "reason": "Código não encontrado"}
+            
+        invite = res.data[0]
+        
+        if not invite["is_active"]:
+            return {"valid": False, "reason": "Código inativo"}
+            
+        if invite["expires_at"]:
+            from datetime import datetime, timezone
+            expires = datetime.fromisoformat(invite["expires_at"].replace("Z", "+00:00"))
+            if expires < datetime.now(timezone.utc):
+                return {"valid": False, "reason": "Código expirado"}
+                
+        if invite["max_uses"] is not None and invite["uses_count"] >= invite["max_uses"]:
+            return {"valid": False, "reason": "Limite de usos atingido"}
+            
+        return {"valid": True, "code": invite["code"]}
+    except Exception as e:
+        print(f"[VALIDATE INVITE ERROR] {str(e)}")
+        return {"valid": False, "reason": "Erro interno ao validar"}
