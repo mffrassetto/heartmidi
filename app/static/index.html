@@ -785,6 +785,7 @@
                     <button class="tool-btn active" id="tool-select" title="Selecionar (S)">Select</button>
                     <button class="tool-btn" id="tool-pencil" title="Lápis (P)">Pencil</button>
                     <button class="tool-btn" id="tool-eraser" title="Borracha (E)">Eraser</button>
+                    <button class="btn btn-outline" id="btn-trim-silence" style="width: auto; padding: 0.25rem 0.75rem; font-size: 0.875rem; border-color: rgba(34, 197, 94, 0.4); color: #4be277; margin-left: 0.5rem;" onclick="editorInstance.trimStartSilence()" title="Remove o silêncio do início deslocando as notas">✂️ Cortar Silêncio Inicial</button>
                     <div style="flex-grow: 1;"></div>
                     <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--muted); font-size: 0.875rem;">
                         <span>Snap:</span>
@@ -1498,8 +1499,8 @@
                 const width = this.midi.duration * this.zoomX + 200;
                 const height = 128 * this.noteHeight;
                 
-                this.canvas.width = width;
-                this.canvas.height = height;
+                if (this.canvas.width !== width) this.canvas.width = width;
+                if (this.canvas.height !== height) this.canvas.height = height;
                 
                 this.ctx.fillStyle = '#0a0a0f';
                 this.ctx.fillRect(0, 0, width, height);
@@ -1558,10 +1559,14 @@
                     }
 
                     this.ctx.fillStyle = gradient;
-                    this.ctx.shadowBlur = isSelected ? 15 : 10;
-                    this.ctx.shadowColor = isSelected ? 'rgba(255, 255, 255, 0.6)' : 'rgba(75, 226, 119, 0.4)';
+                    if (isSelected) {
+                        this.ctx.shadowBlur = 15;
+                        this.ctx.shadowColor = 'rgba(255, 255, 255, 0.6)';
+                    }
                     this.ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
-                    this.ctx.shadowBlur = 0;
+                    if (isSelected) {
+                        this.ctx.shadowBlur = 0;
+                    }
 
                     if (isSelected) {
                         this.ctx.strokeStyle = '#ffffff';
@@ -1818,6 +1823,44 @@
                     });
                     Tone.Transport.start();
                 }
+            }
+
+            trimStartSilence() {
+                if (!this.notes || this.notes.length === 0) {
+                    alert("Não há notas para cortar.");
+                    return;
+                }
+                
+                // Encontra o tempo da primeira nota
+                const minTime = this.notes.reduce((min, n) => Math.min(min, n.time), Infinity);
+                
+                if (minTime === Infinity || minTime <= 0.05) {
+                    alert("A música já começa no início (sem silêncio inicial significativo para cortar).");
+                    return;
+                }
+                
+                // Pergunta ao usuário se ele quer confirmar
+                const confirmTrim = confirm(`Encontramos um silêncio inicial de ${minTime.toFixed(2)} segundos. Deseja deslocar todas as notas para o início da música?`);
+                if (!confirmTrim) return;
+                
+                // Desloca todas as notas para trás por minTime
+                this.notes.forEach(n => {
+                    n.time = Math.max(0, n.time - minTime);
+                });
+                
+                // Recalcula a duração do MIDI com base na última nota
+                let maxEnd = 0;
+                this.notes.forEach(n => {
+                    maxEnd = Math.max(maxEnd, n.time + n.duration);
+                });
+                
+                // Atualiza a duração do MIDI para encolher a tela
+                if (this.midi) {
+                    this.midi.duration = maxEnd;
+                }
+                
+                this.render();
+                alert(`Sucesso! ${minTime.toFixed(2)} segundos de silêncio inicial foram cortados.`);
             }
         }
 
