@@ -8,58 +8,8 @@ import numpy as np
 MIN_NOTE_DURATION_MS = 50 # Adjusted to 50ms as per project.md
 DEFAULT_VELOCITY = 80
 
-# Heartopia 22-key layout (3 octaves of C Major + C7)
-# Range: C4 (60) to C7 (96)
-# Notes: C, D, E, F, G, A, B
-HEARTOPIA_ALLOWED_NOTES = [
-    60, 62, 64, 65, 67, 69, 71, # Octave 4
-    72, 74, 76, 77, 79, 81, 83, # Octave 5
-    84, 86, 88, 89, 91, 93, 95, # Octave 6
-    96                          # C7
-]
+# General MIDI utilities for heartmid
 
-def clamp_to_heartopia_scale(midi_path: Path, output_path: Path) -> Path:
-    """Force all notes to the nearest valid key in the 22-key Heartopia layout."""
-    mid = MidiFile(str(midi_path))
-    allowed = np.array(HEARTOPIA_ALLOWED_NOTES)
-    
-    for track in mid.tracks:
-        for msg in track:
-            if msg.type in ['note_on', 'note_off']:
-                # 1. Transpose by octaves to fit within the Heartopia range [60, 96]
-                if msg.note < 60:
-                    while msg.note < 60:
-                        msg.note += 12
-                elif msg.note > 96:
-                    while msg.note > 96:
-                        msg.note -= 12
-                
-                # 2. Find nearest allowed note (C Major keys in C4-C7)
-                idx = (np.abs(allowed - msg.note)).argmin()
-                msg.note = int(allowed[idx])
-                
-    mid.save(str(output_path))
-    return output_path
-
-def apply_heartopia_filters(midi_path: Path, output_path: Path) -> Path:
-    """Keep only essential messages for game engines."""
-    mid = MidiFile(str(midi_path))
-    allowed_meta = {'set_tempo', 'time_signature', 'end_of_track'}
-    allowed_channel = {'note_on', 'note_off', 'program_change', 'control_change'}
-    
-    for track in mid.tracks:
-        filtered = []
-        for msg in track:
-            if msg.is_meta:
-                if msg.type in allowed_meta:
-                    filtered.append(msg)
-            else:
-                if msg.type in allowed_channel:
-                    filtered.append(msg)
-        track[:] = filtered
-    
-    mid.save(str(output_path))
-    return output_path
 
 def shift_pitch(midi_path: Path, output_path: Path, semitones: int = -12) -> Path:
     """Shift all notes by a fixed number of semitones."""
@@ -125,11 +75,7 @@ def quantize_timing(midi_path: Path, output_path: Path, grid: str = "1/16", stre
 
 def transpose_to_range(midi_path: Path, output_path: Path, min_note: int = 36, max_note: int = 84) -> Path:
     """
-    Range adjusted to C2-C6 (common for game instruments) while preserving octave transpositions.
-    
-    NOTE: This function is MUTUALLY EXCLUSIVE with clamp_to_heartopia_scale.
-    Calling both in sequence will double-transpose notes and produce incorrect results.
-    For Heartopia game output, use clamp_to_heartopia_scale instead.
+    Range adjusted to min_note and max_note while preserving octave transpositions.
     """
     mid = MidiFile(str(midi_path))
     for track in mid.tracks:
@@ -296,7 +242,6 @@ def main():
         mid_file = Path(sys.argv[1])
         if mid_file.exists():
             print(f"Processando {mid_file}...")
-            apply_heartopia_filters(mid_file, mid_file)
             clean_short_notes(mid_file, mid_file)
             deduplicate_notes(mid_file, mid_file)
             print("Concluído.")

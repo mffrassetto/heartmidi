@@ -4,14 +4,11 @@ import pretty_midi
 from pathlib import Path
 import numpy as np
 from app.formatter import (
-    HEARTOPIA_ALLOWED_NOTES,
-    clamp_to_heartopia_scale,
     quantize_timing,
     clean_short_notes,
     deduplicate_notes,
     limit_polyphony,
     shift_pitch,
-    apply_heartopia_filters,
     convert_zero_velocity_to_note_off,
     enforce_channel_and_program,
     detect_bpm
@@ -88,8 +85,9 @@ def run_post_processing_pipeline(midi_path: Path, output_path: Path, audio_path:
 
     print(f"[POST-PROCESS] Starting universal pipeline for {midi_path}")
     
-    # 1. Essential cleanup
-    apply_heartopia_filters(midi_path, temp_path)
+    import shutil
+    if midi_path != temp_path:
+        shutil.copy(midi_path, temp_path)
     
     # 2. Shift pitch (0 offset)
     shift_pitch(temp_path, temp_path, semitones=0)
@@ -103,9 +101,7 @@ def run_post_processing_pipeline(midi_path: Path, output_path: Path, audio_path:
     if quantize_grid and quantize_grid != "none":
         print(f"[POST-PROCESS] Quantizing to {quantize_grid} grid at {bpm:.2f} BPM...")
         quantize_timing(temp_path, temp_path, grid=quantize_grid, strength=0.7, bpm=bpm, latency_offset_ms=-25)
-    
-    # 5. Clamp to Heartopia Scale (ESSENTIAL)
-    clamp_to_heartopia_scale(temp_path, temp_path)
+
     
     # 6. Final normalization
     convert_zero_velocity_to_note_off(temp_path, temp_path)

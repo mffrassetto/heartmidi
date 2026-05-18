@@ -1,28 +1,20 @@
 # heartmid 🎹
 
-Transforme músicas do YouTube ou arquivos locais em arquivos MIDI de alta fidelidade, compatíveis com o jogo **Heartopia**.
+Transforme músicas do YouTube ou arquivos locais em arquivos MIDI e MP3 de alta fidelidade instantaneamente.
 
-O sistema utiliza o estado da arte em transcrição polifônica de piano (Kong et al., 2020) e aplica filtros inteligentes para garantir que o resultado seja 100% compatível com os instrumentos in-game.
+O sistema utiliza o estado da arte em transcrição polifônica de áudio e inteligência artificial para extrair notas, onsets, offsets e dinâmicas com precisão absoluta, permitindo a edição direta através de um Piano Roll interativo.
 
 ---
 
 ## ✨ Funcionalidades
 
-- **Transcrição de Alta Precisão**: Motor neural `piano-transcription-inference` treinado em datasets MAESTRO/MAPS, capaz de detectar onsets, offsets e velocidades precisas.
-- **Suporte a YouTube**: Basta colar o link para baixar e converter.
-- **Filtros Heartopia (Smart Engine)**:
-    - **Escala de 22 Teclas**: Clamping automático para Dó Maior (C4 a C7).
-    - **Gestão de Polifonia**: Limite inteligente de até 6 notas simultâneas.
-    - **Limpeza de Ruído**: Remoção de artefatos menores que 30ms.
-    - **Quantização Opcional**: Ajuste rítmico com detecção automática de BPM.
-- **Interface Web Moderna**: Dashboard responsivo para gerenciar conversões.
-- **Arquitetura Cloud-Ready (Async)**: Otimizado para Cloudflare (timeout de 100s) usando Supabase Realtime para progresso ao vivo.
-
----
-
-## 🏗️ Arquitetura
-O heartmid utiliza uma arquitetura assíncrona orientada a eventos para garantir que o processamento pesado não bloqueie a conexão do usuário. 
-Consulte [ARCHITECTURE.md](./ARCHITECTURE.md) para detalhes técnicos sobre o fluxo de jobs e integração com Realtime.
+- **Transcrição de Alta Precisão (Audio-to-MIDI)**: Motor neural treinado em datasets de ponta, capaz de detectar onsets, offsets e dinâmicas de velocidade precisas.
+- **YouTube para MIDI / YouTube para MP3**: Baixe e converta vídeos diretamente do YouTube informando apenas o link.
+- **Instrumentos Destino**: Escolha o timbre instrumental alvo e configure sua conversão.
+- **Quantização Rítmica Inteligente**: Ajuste rítmico automático com detecção precisa de BPM.
+- **Piano Roll MIDI Editor**: Edite, mova, adicione, delete e redimensione notas diretamente pelo navegador com feedback sonoro ao vivo antes de exportar seu arquivo final.
+- **Interface Web Premium**: Dashboard responsivo, moderno e totalmente otimizado.
+- **Arquitetura Assíncrona e Escalável**: Fluxo baseado em jobs asíncronos com progresso em tempo real sincronizado via Supabase.
 
 ---
 
@@ -71,24 +63,16 @@ Acesse a interface em: `http://localhost:8000`
 
 O pipeline de processamento segue estas etapas:
 
-1.  **Ingestão**: Download via `yt-dlp` ou upload de arquivo.
+1.  **Ingestão**: Download via `yt-dlp` ou upload de arquivo de áudio local.
 2.  **Normalização**: Conversão para WAV 16kHz Mono via `ffmpeg`.
-3.  **Inferência**: Processamento pelo modelo de rede neural (Kong 2020).
+3.  **Inferência**: Transcrição pelo modelo de rede neural polifônico.
 4.  **Pós-Processamento**:
-    - Remoção de notas curtíssimas.
-    - Limite de polifonia (6 vozes).
-    - Mapeamento de escala (C4-C7).
-    - Quantização rítmica (se solicitado).
+    - Ajuste rítmico por quantização (opcional).
+    - Ajustes de velocidade e dinâmicas de notas.
+5.  **Exibição & Edição**: Sincronização em tempo real para o Piano Roll no frontend.
 
 ---
 
 ## 📝 Créditos e Licença
 
-Desenvolvido por **Maria Fernanda Frassetto - MFF Web Agency**.
-Heartopia é uma marca registrada de seus respectivos proprietários. Este aplicativo fornece ferramentas de compatibilidade e não possui vínculo oficial.
----
-
-## 📈 Histórico de Atualizações
-
-- **v1.1.0 (Cloudflare Ready)**: Implementação de arquitetura assíncrona com Supabase Realtime, contornando timeouts de 100s e adicionando persistência de sessão para jobs ativos.
-- **v1.0.0**: Lançamento inicial com suporte a YouTube, arquivos locais e filtros Heartopia.
+Desenvolvido com excelência por **Maria Fernanda Frassetto - MFF Web Agency**. Todos os direitos reservados.

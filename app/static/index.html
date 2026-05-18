@@ -516,33 +516,7 @@
             width: 70%;
         }
 
-        .piano-key.allowed-heartopia {
-            background: #11291b; /* Emerald dark green background */
-            color: #22c55e;      /* Emerald text */
-            border-bottom: 1px solid #164e2a;
-            font-weight: bold;
-        }
-
-        .piano-key.disabled-heartopia {
-            background: #151522; /* Muted darker background */
-            color: #4b5563;      /* Muted text */
-            opacity: 0.35;
-        }
-
-        .piano-key.black.disabled-heartopia {
-            background: #08080c; /* Extremely dark background */
-            color: #374151;
-            opacity: 0.3;
-        }
-
-        .heart-badge {
-            margin-left: auto;
-            margin-right: 4px;
-            font-size: 8px;
-            color: #22c55e;
-        }
-
-        .editor-canvas-container {
+         .editor-canvas-container {
             flex-grow: 1;
             height: 100%;
             overflow: auto;
@@ -645,7 +619,7 @@
         <main id="converter-view">
             <div class="card">
                 <h1>Converta áudio para MIDI</h1>
-                <p class="subtitle">Transforme suas ideias musicais em dados MIDI precisos instantaneamente. Compatível com Heartopia.</p>
+                <p class="subtitle">Transforme suas ideias musicais em dados MIDI de alta fidelidade instantaneamente.</p>
 
                 <div class="tabs">
                     <button class="tab active" data-tab="url">URL para MIDI</button>
@@ -696,11 +670,6 @@
                             <option value="drums">Drums</option>
                             <option value="bass">Bass</option>
                         </select>
-                    </div>
-
-                    <div class="checkbox-group">
-                        <input type="checkbox" id="apply-filters" checked>
-                        <label for="apply-filters">Filtros Heartopia Ativos</label>
                     </div>
                 </div>
 
@@ -906,7 +875,7 @@
         </main>
 
         <footer style="text-align: center; padding: 2rem; color: var(--muted); font-size: 0.875rem;">
-            <p>© 2024 Maria Fernanda Frassetto - MFF Web Agency. MIDI compatibility for Heartopia.</p>
+            <p>© 2024 Maria Fernanda Frassetto - MFF Web Agency. Todos os direitos reservados.</p>
         </footer>
     </div>
 
@@ -1120,15 +1089,13 @@
             });
         }
 
-        // Conversion Logic
         convertBtn.addEventListener('click', async () => {
             const activeTab = document.querySelector('.tab.active').dataset.tab;
             const instrument = document.getElementById('instrument').value;
-            const applyFilters = document.getElementById('apply-filters').checked;
             
             const formData = new FormData();
             formData.append('instrument', instrument);
-            formData.append('apply_filters', applyFilters);
+            formData.append('apply_filters', 'false');
             
             let endpoint = '/convert';
             
@@ -1731,21 +1698,13 @@
                     const div = document.createElement('div');
                     
                     const isBlack = name.includes('#');
-                    const isAllowed = (i >= 60 && i <= 96 && !isBlack);
                     
-                    div.className = `piano-key ${isBlack ? 'black' : ''} ${isAllowed ? 'allowed-heartopia' : 'disabled-heartopia'}`;
+                    div.className = `piano-key ${isBlack ? 'black' : ''}`;
                     div.style.height = `${this.noteHeight}px`;
                     
                     const labelSpan = document.createElement('span');
                     labelSpan.textContent = (i % 12 === 0) ? `${name}${octave}` : name;
                     div.appendChild(labelSpan);
-                    
-                    if (isAllowed) {
-                        const heartSpan = document.createElement('span');
-                        heartSpan.className = 'heart-badge';
-                        heartSpan.textContent = '💚';
-                        div.appendChild(heartSpan);
-                    }
                     
                     this.keys.appendChild(div);
                 }
@@ -1821,19 +1780,15 @@
                 this.ctx.fillStyle = '#0a0a0f';
                 this.ctx.fillRect(0, 0, width, height);
 
-                // Destaque visual das faixas Heartopia
+                // Destaque das teclas pretas
                 const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
                 for(let midi=0; midi<128; midi++) {
                     const name = noteNames[midi % 12];
                     const isBlack = name.includes('#');
-                    const isAllowed = (midi >= 60 && midi <= 96 && !isBlack);
-                    
                     const y = (127 - midi) * this.noteHeight;
-                    if (isAllowed) {
-                        this.ctx.fillStyle = 'rgba(34, 197, 94, 0.04)'; // 4% de opacidade esmeralda
-                        this.ctx.fillRect(0, y, width, this.noteHeight);
-                    } else if (isBlack) {
-                        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.15)'; // 15% escuro para pretas
+                    
+                    if (isBlack) {
+                        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
                         this.ctx.fillRect(0, y, width, this.noteHeight);
                     }
                 }

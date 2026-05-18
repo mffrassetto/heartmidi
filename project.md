@@ -1,17 +1,17 @@
 # Documentação Técnica: heartmid
 **Desenvolvedor: Maria Fernanda Frassetto - MFF Web Agency**
 
-Este documento detalha a arquitetura, os algoritmos e as decisões de design do conversor Audio-to-MIDI **heartmid**, compatível com o jogo Heartopia.
+Este documento detalha a arquitetura, os algoritmos e as decisões de design do conversor Audio-to-MIDI e YouTube-to-MP3 **heartmid**.
 
 ## 1. Visão Geral da Arquitetura
 
 O sistema é construído como uma aplicação distribuída em camadas:
 
--   **Interface (Frontend)**: Dashboard em HTML5/Vanilla JS integrado à FastAPI.
+-   **Interface (Frontend)**: Dashboard em HTML5/Vanilla JS integrado à FastAPI com um editor de Piano Roll completo e interativo.
 -   **API (Backend)**: FastAPI gerenciando jobs assíncronos via `asyncio.create_task`.
 -   **Motor de IA (Inference)**: `piano-transcription-inference` baseado no modelo de Kong et al. (2020).
 -   **Processamento de Sinal (DSP)**: `librosa` e `ffmpeg` para normalização.
--   **Formatador MIDI**: Lógica customizada usando `mido` e `pretty_midi` para filtros de compatibilidade.
+-   **Formatador MIDI**: Lógica de pós-processamento usando `mido` e `pretty_midi`.
 
 ---
 
@@ -19,30 +19,28 @@ O sistema é construído como uma aplicação distribuída em camadas:
 
 ### Etapa 1: Ingestão de Mídia (`downloader.py`)
 -   Utiliza `yt-dlp` para extrair áudio de links externos.
--   Suporta cookies para acesso a conteúdos restritos.
+-   Suporta downloads de MP3 em bitrates configuráveis.
 -   Normaliza o áudio para WAV, 16.000 Hz, Mono (requisito do modelo de IA).
 
 ### Etapa 2: Transcrição Neural (`processor.py`)
 -   **Modelo**: High-resolution Piano Transcription with Onset and Offset Detection.
--   **Vantagem**: Ao contrário de modelos mais simples (como Basic-Pitch), este modelo detecta com precisão o final da nota (offset), o que é vital para instrumentos com sustain em Heartopia.
+-   **Vantagem**: Ao contrário de modelos mais simples (como Basic-Pitch), este modelo detecta com precisão o final da nota (offset), preservando a expressividade da performance original.
 -   **Patch de Compatibilidade**: Implementa um monkey-patch no `torch.load` para garantir compatibilidade com versões recentes do PyTorch e evitar erros de `map_location`.
 
-### Etapa 3: Filtros Heartopia (`formatter.py`)
-Para que o MIDI funcione perfeitamente no jogo, aplicamos:
+### Etapa 3: Pós-Processamento e Quantização (`formatter.py`)
+Para produzir arquivos MIDI de alta qualidade, aplicamos:
 
-1.  **Limpeza de Notas Curtas**: Notas < 30ms são removidas como ruído de transcrição.
-2.  **Limite de Polifonia**: O motor de destino suporta polifonia limitada em passagens densas. Limitamos a 6 notas simultâneas, priorizando as notas com maior *velocity* (intensidade).
-3.  **Clamp de Escala (22 teclas)**: O layout de 22 teclas (comum em Heartopia) possui um range fixo em Dó Maior (C4 a C7). Qualquer nota fora desse range é transposta por oitavas até entrar no limite ou removida se for excessivamente fora.
-4.  **Quantização (Opcional)**: Se ativado, o sistema detecta o BPM do áudio e ajusta os onsets para o grid (1/16, 1/8, etc.) com força de 50%, mantendo o "feel" humano mas corrigindo imprecisões.
+1.  **Limpeza de Notas Curtas**: Notas residuais extremamente curtas são limpas para evitar ruídos de transcrição.
+2.  **Quantização Rítmica (Opcional)**: Se ativado, o sistema detecta o BPM do áudio original e ajusta os onsets para o grid rítmico selecionado (1/16, 1/8, etc.) com força ajustável, refinando o tempo sem perder o "feel" musical humano.
 
 ---
 
 ## 3. Gestão de Jobs e Persistência
 
-Os jobs são armazenados em `data/` como arquivos JSON (`{job_id}.job.json`). Isso permite:
--   Resiliência a reinicializações do servidor.
--   Monitoramento de progresso em tempo real via endpoint `/status/{job_id}`.
--   Download posterior de resultados.
+Os jobs são armazenados e monitorados em tempo real:
+-   Arquitetura de fila de jobs assíncrona baseada em token de autorização.
+-   Sincronização em tempo real do status e progresso do processamento usando Supabase para uma experiência de usuário rica e ágil.
+-   Interface de download direto e edição de MIDI através do Piano Roll integrado.
 
 ---
 
@@ -54,14 +52,13 @@ app/
 ├── downloader.py      # Download (yt-dlp) e Normalização (FFmpeg)
 ├── processor.py       # Inferência de IA (Kong 2020)
 ├── formatter.py       # Pós-processamento e Filtros MIDI
-├── analyzer.py        # Detecção de BPM e análise rítmica
-└── static/            # Frontend (HTML/JS/CSS)
+└── static/            # Frontend (HTML/JS/CSS, Piano Roll Editor)
 ```
 
 ---
 
 ## 5. Manutenção e Debugging
 
--   **Logs**: O sistema gera logs detalhados no console e pode ser configurado para persistir em `server.log`.
--   **Limpeza**: Recomenda-se um script de limpeza periódica para a pasta `data/` para remover arquivos temporários antigos.
--   **Memória**: O modelo de IA consome aproximadamente 1.5GB de RAM durante a inferência.
+-   **Logs**: O sistema gera logs detalhados no console de execução da aplicação FastAPI.
+-   **Limpeza**: O diretório `data/` armazena os arquivos de áudio temporários e os MIDIs gerados.
+-   **Memória**: O modelo neural consome aproximadamente 1.5GB de RAM durante a inferência.

@@ -1,6 +1,6 @@
 # heartmid - Interface Definition
 
-A interface do sistema foi projetada para ser simples, intuitiva e focada em produtividade para músicos e jogadores.
+A interface do sistema foi projetada para ser simples, intuitiva e focada em produtividade para músicos e produtores.
 
 ## 🎨 Design System
 
@@ -16,23 +16,23 @@ A interface do sistema foi projetada para ser simples, intuitiva e focada em pro
 ## 📱 Componentes da Interface
 
 ### 1. Painel de Ingestão
--   **URL do YouTube**: Suporte a links diretos.
+-   **URL do YouTube**: Suporte a links diretos para conversão MIDI ou MP3.
 -   **Upload de Arquivos**: Suporte a MP3, WAV e M4A.
 -   **Configurações Rápidas**:
-    -   Ativar/Desativar Filtros Heartopia.
+    -   Escolha de Instrumento Destino (Dropdown).
     -   Seleção de Quantização (Nenhuma, 1/8, 1/16, 1/32).
 
 ### 2. Monitor de Progresso
 -   Exibição em tempo real das etapas:
     -   📥 Baixando áudio...
     -   🧠 Transcrevendo com IA...
-    -   🎼 Aplicando filtros...
+    -   🎼 Processando MIDI...
     -   ✅ Concluído!
 
 ### 3. Painel de Resultado
 -   **Estatísticas**: Contagem de notas e duração do áudio.
--   **Download**: Botão direto para o arquivo `.mid` finalizado.
--   **Preview**: (Funcionalidade de visualização de piano roll em desenvolvimento).
+-   **Download**: Botão direto para o arquivo `.mid` ou `.mp3` finalizado.
+-   **Preview & Edição**: Piano Roll MIDI Editor integrado para visualização e edição direta das notas em tempo real.
 
 ---
 

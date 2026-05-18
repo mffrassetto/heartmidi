@@ -4,7 +4,7 @@ Esta documentação descreve os endpoints e a lógica de processamento para a in
 
 ## 1. Visão Geral
 A integração com o YouTube permite que os usuários:
-1.  Convertam vídeos do YouTube diretamente para arquivos MIDI (otimizados para o motor de jogo Heartopia).
+1.  Convertam vídeos do YouTube diretamente para arquivos MIDI de alta fidelidade.
 2.  Extraiam áudio de vídeos do YouTube em formato MP3 com qualidade configurável (até 320kbps).
 
 ---
@@ -18,11 +18,10 @@ Inicia um processo assíncrono para baixar o áudio de um vídeo e transcrevê-l
 -   **Método:** `POST`
 -   **Autenticação:** Requer JWT no Header `Authorization: Bearer <token>`
 -   **Corpo (Form Data):**
-    -   `source`: `"url"` (obrigatório)
-    -   `url`: URL do vídeo do YouTube (obrigatório)
-    -   `instrument`: Tipo de instrumento (ex: `"piano"`)
-    -   `apply_filters`: `true`/`false` (aplica filtros de polifonia e escala)
-    -   `quantize`: `"none"`, `"1/4"`, `"1/8"`, `"1/16"`, etc.
+-   `source`: `"url"` (obrigatório)
+-   `url`: URL do vídeo do YouTube (obrigatório)
+-   `instrument`: Tipo de instrumento (ex: `"piano"`)
+-   `quantize`: `"none"`, `"1/4"`, `"1/8"`, `"1/16"`, etc.
 
 **Resposta de Sucesso:**
 ```json
@@ -42,8 +41,8 @@ Inicia a extração de áudio e conversão para o formato MP3.
 -   **Método:** `POST`
 -   **Autenticação:** Requer JWT
 -   **Corpo (Form Data):**
-    -   `url`: URL do vídeo do YouTube (obrigatório)
-    -   `bitrate`: Qualidade do áudio (ex: `"128k"`, `"192k"`, `"256k"`, `"320k"`)
+-   `url`: URL do vídeo do YouTube (obrigatório)
+-   `bitrate`: Qualidade do áudio (ex: `"128k"`, `"192k"`, `"256k"`, `"320k"`)
 
 **Resposta de Sucesso:**
 ```json

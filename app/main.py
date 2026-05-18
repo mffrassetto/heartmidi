@@ -340,31 +340,21 @@ async def process_audio(job_id: str, token: Optional[str] = None):
             output_dir
         )
         
-        await job_manager.update_job(job_id, token, progress=70, stage="Aplicando filtros...")
-        
-        from app.formatter import clamp_to_heartopia_scale, limit_polyphony, clean_short_notes
+        await job_manager.update_job(job_id, token, progress=70, stage="Processando MIDI...")
         
         filtered_midi = DATA_DIR / f"{job_id}.mid"
         
+        import shutil
+        await asyncio.to_thread(shutil.copy, midi_path, filtered_midi)
+        
         metadata = job.get("metadata", {})
-        if metadata.get("apply_filters", True):
-            print("[PROCESS] Applying minimal game-engine filters: Short-note removal, Polyphony(6), Scale Clamping.")
-
-            await asyncio.to_thread(clean_short_notes, midi_path, midi_path, min_duration_ms=30)
-            await asyncio.to_thread(limit_polyphony, midi_path, midi_path, max_simultaneous=6)
-
-            quantize_str = metadata.get('quantize', 'none')
-            if quantize_str and quantize_str != 'none':
-                from app.formatter import quantize_timing, detect_bpm
-                bpm = await asyncio.to_thread(detect_bpm, normalized)
-                print(f"[PROCESS] BPM: {bpm:.2f}. Quantizing to {quantize_str} (strength=0.5)...")
-                await asyncio.to_thread(quantize_timing, midi_path, midi_path, grid=quantize_str,
-                                strength=0.5, bpm=bpm, latency_offset_ms=0)
-
-            await asyncio.to_thread(clamp_to_heartopia_scale, midi_path, filtered_midi)
-        else:
-            import shutil
-            await asyncio.to_thread(shutil.copy, midi_path, filtered_midi)
+        quantize_str = metadata.get('quantize', 'none')
+        if quantize_str and quantize_str != 'none':
+            from app.formatter import quantize_timing, detect_bpm
+            bpm = await asyncio.to_thread(detect_bpm, normalized)
+            print(f"[PROCESS] BPM: {bpm:.2f}. Quantizing to {quantize_str} (strength=0.5)...")
+            await asyncio.to_thread(quantize_timing, filtered_midi, filtered_midi, grid=quantize_str,
+                            strength=0.5, bpm=bpm, latency_offset_ms=0)
         
         new_note_count = await asyncio.to_thread(job_manager.get_note_count, filtered_midi)
         new_duration = await asyncio.to_thread(job_manager.get_duration, filtered_midi)
@@ -489,7 +479,7 @@ async def save_midi(
 ):
     """
     Recebe a lista de notas editadas pelo usuário no frontend, reconstrói o arquivo
-    MIDI usando pretty_midi, re-aplica os filtros Heartopia e atualiza o Job no Supabase.
+    MIDI usando pretty_midi e atualiza o Job no Supabase.
     """
     job = await job_manager.get_job(job_id)
     if not job:
@@ -540,16 +530,8 @@ async def save_midi(
             
         pm.instruments.append(piano)
         
-        # Grava temporariamente no disco para aplicar os filtros
+        # Grava diretamente no disco
         await asyncio.to_thread(pm.write, str(file_path))
-        
-        # 2. Re-aplica filtros de compatibilidade Heartopia de forma silenciosa
-        from app.formatter import clamp_to_heartopia_scale, limit_polyphony, clean_short_notes
-        
-        # Filtros de compatibilidade do jogo
-        await asyncio.to_thread(clean_short_notes, file_path, file_path, min_duration_ms=30)
-        await asyncio.to_thread(limit_polyphony, file_path, file_path, max_simultaneous=6)
-        await asyncio.to_thread(clamp_to_heartopia_scale, file_path, file_path)
         
         # 3. Recalcula estatísticas finais
         new_note_count = await asyncio.to_thread(job_manager.get_note_count, file_path)
