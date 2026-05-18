@@ -242,7 +242,8 @@ async def process_mp3_task(job_id: str, token: Optional[str] = None):
 @app.post("/fetch-audio")
 async def fetch_audio(
     url: str = Form(...),
-    normalize: bool = Form(True)
+    normalize: bool = Form(True),
+    user = Depends(get_current_user)
 ):
     try:
         if not url:
@@ -464,6 +465,105 @@ async def get_midi_data(job_id: str, user = Depends(get_current_user)):
         },
         headers={"Cache-Control": "no-store"}
     )
+
+@app.post("/save-midi/{job_id}")
+async def save_midi(
+    job_id: str,
+    payload: dict,
+    user = Depends(get_current_user)
+):
+    """
+    Recebe a lista de notas editadas pelo usuário no frontend, reconstrói o arquivo
+    MIDI usando pretty_midi, re-aplica os filtros Heartopia e atualiza o Job no Supabase.
+    """
+    job = await job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job não encontrado")
+    if str(job.get("user_id")) != str(user.id):
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    if job.get("job_type") != "midi":
+        raise HTTPException(status_code=400, detail="Job não é do tipo MIDI")
+    
+    output_file = job.get("output_file")
+    if not output_file:
+        raise HTTPException(status_code=404, detail="Arquivo de saída não definido para este job")
+    
+    file_path = Path(output_file)
+    
+    notes = payload.get("notes", [])
+    if not isinstance(notes, list):
+        raise HTTPException(status_code=400, detail="A lista de notas deve ser fornecida no campo 'notes'")
+        
+    try:
+        import pretty_midi
+        
+        # 1. Reconstrói o MIDI básico usando pretty_midi
+        pm = pretty_midi.PrettyMIDI()
+        piano = pretty_midi.Instrument(program=0) # Piano padrão
+        
+        for n_data in notes:
+            pitch = int(n_data["midi"])
+            start = float(n_data["time"])
+            end = start + float(n_data["duration"])
+            
+            # Normalização de velocity
+            vel = n_data.get("velocity", 0.8)
+            if isinstance(vel, float) and vel <= 1.0:
+                velocity = int(vel * 127)
+            else:
+                velocity = int(vel)
+            velocity = max(1, min(127, velocity))
+            
+            # Cria a nota e adiciona ao instrumento
+            note = pretty_midi.Note(
+                velocity=velocity,
+                pitch=pitch,
+                start=start,
+                end=end
+            )
+            piano.notes.append(note)
+            
+        pm.instruments.append(piano)
+        
+        # Grava temporariamente no disco para aplicar os filtros
+        pm.write(str(file_path))
+        
+        # 2. Re-aplica filtros de compatibilidade Heartopia de forma silenciosa
+        from app.formatter import clamp_to_heartopia_scale, limit_polyphony, clean_short_notes
+        
+        # Filtros de compatibilidade do jogo
+        clean_short_notes(file_path, file_path, min_duration_ms=30)
+        limit_polyphony(file_path, file_path, max_simultaneous=6)
+        clamp_to_heartopia_scale(file_path, file_path)
+        
+        # 3. Recalcula estatísticas finais
+        new_note_count = job_manager.get_note_count(file_path)
+        new_duration = job_manager.get_duration(file_path)
+        
+        # 4. Atualiza banco de dados Supabase via JobManager
+        await job_manager.update_job(
+            job_id,
+            progress=100,
+            stage="Concluído (Editado)",
+            status="completed",
+            note_count=new_note_count,
+            duration=new_duration
+        )
+        
+        return JSONResponse(
+            content={
+                "status": "completed",
+                "message": "MIDI salvo e otimizado com sucesso!",
+                "note_count": new_note_count,
+                "duration": new_duration
+            }
+        )
+        
+    except Exception as e:
+        import traceback
+        print(f"[ERRO AO SALVAR MIDI {job_id}] {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Erro interno ao salvar arquivo MIDI: {str(e)}")
 
 @app.get("/source/{job_id}")
 async def get_source_audio(job_id: str, user = Depends(get_current_user)):
