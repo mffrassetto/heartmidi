@@ -1395,6 +1395,12 @@
                 this.isResizing = false;
                 this.resizeNote = null;
                 
+                // Variáveis para seleção de área e multi-seleção
+                this.selectedNotes = [];
+                this.isSelectingRange = false;
+                this.selectionStart = null;
+                this.selectionEnd = null;
+                
                 this.initKeys();
                 this.setupListeners();
             }
@@ -1438,6 +1444,17 @@
                 window.onmouseup = (e) => this.handleMouseUp(e);
                 
                 document.getElementById('editor-play-btn').onclick = () => this.togglePlayback();
+
+                // Atalho de teclado para deletar notas selecionadas
+                window.addEventListener('keydown', (e) => {
+                    if (this.currentTool === 'select' && (e.key === 'Delete' || e.key === 'Backspace')) {
+                        if (this.selectedNotes.length > 0) {
+                            this.notes = this.notes.filter(n => !this.selectedNotes.includes(n));
+                            this.selectedNotes = [];
+                            this.render();
+                        }
+                    }
+                });
 
                 const scrollContainer = document.getElementById('canvas-scroll-container');
                 if (scrollContainer) {
@@ -1529,16 +1546,51 @@
                     const w = note.duration * this.zoomX;
                     const h = this.noteHeight;
 
+                    const isSelected = this.selectedNotes.includes(note);
+
                     const gradient = this.ctx.createLinearGradient(x, y, x + w, y);
-                    gradient.addColorStop(0, '#4be277');
-                    gradient.addColorStop(1, '#22c55e');
+                    if (isSelected) {
+                        gradient.addColorStop(0, '#ffffff');
+                        gradient.addColorStop(1, '#4be277');
+                    } else {
+                        gradient.addColorStop(0, '#4be277');
+                        gradient.addColorStop(1, '#22c55e');
+                    }
 
                     this.ctx.fillStyle = gradient;
-                    this.ctx.shadowBlur = 10;
-                    this.ctx.shadowColor = 'rgba(75, 226, 119, 0.4)';
+                    this.ctx.shadowBlur = isSelected ? 15 : 10;
+                    this.ctx.shadowColor = isSelected ? 'rgba(255, 255, 255, 0.6)' : 'rgba(75, 226, 119, 0.4)';
                     this.ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
                     this.ctx.shadowBlur = 0;
+
+                    if (isSelected) {
+                        this.ctx.strokeStyle = '#ffffff';
+                        this.ctx.lineWidth = 1.5;
+                        this.ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+                    }
                 });
+
+                // Caixa de seleção de área (marquee)
+                if (this.isSelectingRange && this.selectionStart && this.selectionEnd) {
+                    const x1 = this.selectionStart.x * this.zoomX;
+                    const y1 = (127 - this.selectionStart.y) * this.noteHeight;
+                    const x2 = this.selectionEnd.x * this.zoomX;
+                    const y2 = (127 - this.selectionEnd.y) * this.noteHeight;
+                    
+                    const rx = Math.min(x1, x2);
+                    const ry = Math.min(y1, y2);
+                    const rw = Math.abs(x1 - x2);
+                    const rh = Math.abs(y1 - y2) + this.noteHeight;
+                    
+                    this.ctx.fillStyle = 'rgba(34, 197, 94, 0.15)'; // 15% opacity emerald
+                    this.ctx.fillRect(rx, ry, rw, rh);
+                    
+                    this.ctx.strokeStyle = 'rgba(34, 197, 94, 0.8)';
+                    this.ctx.lineWidth = 1.5;
+                    this.ctx.setLineDash([5, 5]);
+                    this.ctx.strokeRect(rx, ry, rw, rh);
+                    this.ctx.setLineDash([]);
+                }
             }
 
             getBPM() {
@@ -1575,21 +1627,50 @@
 
                 if (this.currentTool === 'eraser' && clickedNote) {
                     this.notes = this.notes.filter(n => n !== clickedNote);
+                    this.selectedNotes = this.selectedNotes.filter(n => n !== clickedNote);
                     this.render();
-                } else if (this.currentTool === 'select' && clickedNote) {
-                    // Detecção de clique na borda de redimensionamento (últimos 12px)
-                    const noteEnd = clickedNote.time + clickedNote.duration;
-                    const threshold = 12 / this.zoomX;
-                    
-                    if (x >= noteEnd - threshold) {
-                        this.isResizing = true;
-                        this.resizeNote = clickedNote;
+                } else if (this.currentTool === 'select') {
+                    if (clickedNote) {
+                        const isCtrlOrShift = e.shiftKey || e.ctrlKey || e.metaKey;
+                        if (!this.selectedNotes.includes(clickedNote)) {
+                            if (!isCtrlOrShift) {
+                                this.selectedNotes = [clickedNote];
+                            } else {
+                                this.selectedNotes.push(clickedNote);
+                            }
+                        } else if (isCtrlOrShift) {
+                            this.selectedNotes = this.selectedNotes.filter(n => n !== clickedNote);
+                        }
+
+                        // Detecção de redimensionamento
+                        const noteEnd = clickedNote.time + clickedNote.duration;
+                        const threshold = 12 / this.zoomX;
+                        
+                        if (x >= noteEnd - threshold) {
+                            this.isResizing = true;
+                            this.resizeNote = clickedNote;
+                        } else {
+                            this.isDragging = true;
+                            this.dragNote = clickedNote;
+                            this.dragStartX = x;
+                            this.dragStartY = y;
+                            this.notesToDrag = this.selectedNotes.map(n => ({
+                                note: n,
+                                originalTime: n.time,
+                                originalMidi: n.midi
+                            }));
+                        }
                     } else {
-                        this.isDragging = true;
-                        this.dragNote = clickedNote;
-                        this.dragStartX = x - clickedNote.time;
-                        this.dragStartY = y - clickedNote.midi;
+                        // Clicou no espaço vazio: limpa seleção e inicia o marquee
+                        const isCtrlOrShift = e.shiftKey || e.ctrlKey || e.metaKey;
+                        if (!isCtrlOrShift) {
+                            this.selectedNotes = [];
+                        }
+                        this.isSelectingRange = true;
+                        this.selectionStart = { x, y };
+                        this.selectionEnd = { x, y };
                     }
+                    this.render();
                 } else if (this.currentTool === 'pencil') {
                     const snappedTime = this.snapTime(x);
                     
@@ -1627,16 +1708,48 @@
                     const newDuration = Math.max(0.05, snappedEnd - this.resizeNote.time);
                     this.resizeNote.duration = newDuration;
                     this.render();
-                } else if (this.isDragging && this.dragNote) {
-                    let newTime = Math.max(0, x - this.dragStartX);
-                    newTime = this.snapTime(newTime);
+                } else if (this.isDragging && this.dragNote && this.notesToDrag) {
+                    const deltaX = x - this.dragStartX;
+                    const deltaY = y - this.dragStartY;
                     
-                    this.dragNote.time = newTime;
-                    this.dragNote.midi = Math.min(127, Math.max(0, y - this.dragStartY));
-                    this.dragNote.name = Tone.Frequency(this.dragNote.midi, "midi").toNote();
+                    this.notesToDrag.forEach(item => {
+                        let newTime = Math.max(0, item.originalTime + deltaX);
+                        newTime = this.snapTime(newTime);
+                        
+                        let newMidi = Math.min(127, Math.max(0, item.originalMidi + deltaY));
+                        
+                        item.note.time = newTime;
+                        item.note.midi = newMidi;
+                        item.note.name = Tone.Frequency(newMidi, "midi").toNote();
+                    });
+                    this.render();
+                } else if (this.isSelectingRange && this.selectionStart) {
+                    this.selectionEnd = { x, y };
+                    
+                    const minX = Math.min(this.selectionStart.x, this.selectionEnd.x);
+                    const maxX = Math.max(this.selectionStart.x, this.selectionEnd.x);
+                    const minY = Math.min(this.selectionStart.y, this.selectionEnd.y);
+                    const maxY = Math.max(this.selectionStart.y, this.selectionEnd.y);
+                    
+                    const isCtrlOrShift = e.shiftKey || e.ctrlKey || e.metaKey;
+                    const newlySelected = this.notes.filter(n => {
+                        const noteLeft = n.time;
+                        const noteRight = n.time + n.duration;
+                        const noteTop = n.midi;
+                        
+                        const horizontalOverlap = !(noteRight < minX || noteLeft > maxX);
+                        const verticalOverlap = (noteTop >= minY && noteTop <= maxY);
+                        return horizontalOverlap && verticalOverlap;
+                    });
+
+                    if (isCtrlOrShift) {
+                        this.selectedNotes = [...new Set([...this.selectedNotes, ...newlySelected])];
+                    } else {
+                        this.selectedNotes = newlySelected;
+                    }
+                    
                     this.render();
                 } else {
-                    // Atualiza o cursor do mouse dinamicamente baseado no hover
                     const hoveredNote = this.notes.find(n => 
                         y === n.midi && x >= n.time && x <= n.time + n.duration
                     );
@@ -1666,8 +1779,14 @@
             handleMouseUp() {
                 this.isDragging = false;
                 this.dragNote = null;
+                this.notesToDrag = null;
                 this.isResizing = false;
                 this.resizeNote = null;
+                
+                this.isSelectingRange = false;
+                this.selectionStart = null;
+                this.selectionEnd = null;
+                this.render();
             }
 
             async togglePlayback() {
