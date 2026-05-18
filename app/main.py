@@ -348,6 +348,8 @@ async def process_audio(job_id: str, token: Optional[str] = None):
         await asyncio.to_thread(shutil.copy, midi_path, filtered_midi)
         
         metadata = job.get("metadata", {})
+        instrument_str = metadata.get('instrument', 'piano')
+        
         quantize_str = metadata.get('quantize', 'none')
         if quantize_str and quantize_str != 'none':
             from app.formatter import quantize_timing, detect_bpm
@@ -355,6 +357,16 @@ async def process_audio(job_id: str, token: Optional[str] = None):
             print(f"[PROCESS] BPM: {bpm:.2f}. Quantizing to {quantize_str} (strength=0.5)...")
             await asyncio.to_thread(quantize_timing, filtered_midi, filtered_midi, grid=quantize_str,
                             strength=0.5, bpm=bpm, latency_offset_ms=0)
+        
+        # Apply MIDI Program Change based on selected instrument
+        prog_num = 0
+        if instrument_str.lower() == 'guitar':
+            prog_num = 25 # Acoustic Guitar (steel)
+        elif instrument_str.lower() == 'bass':
+            prog_num = 33 # Electric Bass (finger)
+            
+        from app.formatter import enforce_channel_and_program
+        await asyncio.to_thread(enforce_channel_and_program, filtered_midi, filtered_midi, channel=0, program=prog_num)
         
         new_note_count = await asyncio.to_thread(job_manager.get_note_count, filtered_midi)
         new_duration = await asyncio.to_thread(job_manager.get_duration, filtered_midi)
@@ -502,9 +514,18 @@ async def save_midi(
     try:
         import pretty_midi
         
+        # Determine correct MIDI Program based on job's instrument metadata
+        metadata = job.get("metadata", {})
+        instrument_str = metadata.get('instrument', 'piano')
+        prog_num = 0
+        if instrument_str.lower() == 'guitar':
+            prog_num = 25
+        elif instrument_str.lower() == 'bass':
+            prog_num = 33
+            
         # 1. Reconstrói o MIDI básico usando pretty_midi
         pm = pretty_midi.PrettyMIDI()
-        piano = pretty_midi.Instrument(program=0) # Piano padrão
+        instrument_obj = pretty_midi.Instrument(program=prog_num)
         
         for n_data in notes:
             pitch = int(n_data["midi"])
@@ -526,9 +547,9 @@ async def save_midi(
                 start=start,
                 end=end
             )
-            piano.notes.append(note)
+            instrument_obj.notes.append(note)
             
-        pm.instruments.append(piano)
+        pm.instruments.append(instrument_obj)
         
         # Grava diretamente no disco
         await asyncio.to_thread(pm.write, str(file_path))
