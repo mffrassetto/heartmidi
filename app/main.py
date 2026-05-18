@@ -228,7 +228,7 @@ async def process_mp3_task(job_id: str, token: Optional[str] = None):
             
         await job_manager.update_job(job_id, token, progress=50, stage=f"Convertendo para MP3 ({bitrate})...")
         
-        mp3_path = download_youtube_mp3(job["url"], output_dir, bitrate=bitrate)
+        mp3_path = await asyncio.to_thread(download_youtube_mp3, job["url"], output_dir, bitrate=bitrate)
         
         await job_manager.update_job(job_id, token, progress=100, stage="Concluído!", 
                              status="completed", output_file=str(mp3_path.resolve()))
@@ -254,13 +254,13 @@ async def fetch_audio(
         source_dir.mkdir(exist_ok=True)
 
         from app.downloader import download_audio, normalize_audio
-        downloaded = download_audio(url, source_dir)
+        downloaded = await asyncio.to_thread(download_audio, url, source_dir)
 
         normalized_path = None
         if normalize:
             normalized_path = DATA_DIR / f"{job_id}_normalized.wav"
             try:
-                normalize_audio(downloaded, normalized_path)
+                await asyncio.to_thread(normalize_audio, downloaded, normalized_path)
             except Exception as e:
                 print(f"[AVISO] FFmpeg não disponível, mantendo arquivo original: {e}")
                 normalized_path = None
@@ -293,15 +293,15 @@ async def process_audio(job_id: str, token: Optional[str] = None):
             audio_path = DATA_DIR / f"{job_id}_source"
             audio_path.mkdir(exist_ok=True)
             
-            downloaded = download_audio(job["url"], audio_path)
+            downloaded = await asyncio.to_thread(download_audio, job["url"], audio_path)
             
             normalized = DATA_DIR / f"{job_id}_normalized.wav"
             try:
-                normalize_audio(downloaded, normalized)
+                await asyncio.to_thread(normalize_audio, downloaded, normalized)
             except Exception as e:
                 print(f"[AVISO] FFmpeg não disponível, usando arquivo original: {e}")
                 import shutil
-                shutil.copy(downloaded, normalized)
+                await asyncio.to_thread(shutil.copy, downloaded, normalized)
         elif job["source"] == "file" and job.get("file_name"):
             from app.downloader import normalize_audio
             from pathlib import Path as _Path
@@ -309,11 +309,11 @@ async def process_audio(job_id: str, token: Optional[str] = None):
             uploaded_path = DATA_DIR / f"{job_id}_uploaded{orig_ext}"
             normalized = DATA_DIR / f"{job_id}_normalized.wav"
             try:
-                normalize_audio(uploaded_path, normalized)
+                await asyncio.to_thread(normalize_audio, uploaded_path, normalized)
             except Exception as e:
                 print(f"[AVISO] FFmpeg não disponível, usando arquivo original: {e}")
                 import shutil
-                shutil.copy(uploaded_path, normalized)
+                await asyncio.to_thread(shutil.copy, uploaded_path, normalized)
         else:
             normalized = DATA_DIR / f"{job_id}_normalized.wav"
         
@@ -323,7 +323,8 @@ async def process_audio(job_id: str, token: Optional[str] = None):
         output_dir = DATA_DIR / f"{job_id}"
         output_dir.mkdir(exist_ok=True)
         
-        midi_path = transcribe_audio(
+        midi_path = await asyncio.to_thread(
+            transcribe_audio,
             normalized,
             output_dir
         )
@@ -338,26 +339,29 @@ async def process_audio(job_id: str, token: Optional[str] = None):
         if metadata.get("apply_filters", True):
             print("[PROCESS] Applying minimal game-engine filters: Short-note removal, Polyphony(6), Scale Clamping.")
 
-            clean_short_notes(midi_path, midi_path, min_duration_ms=30)
-            limit_polyphony(midi_path, midi_path, max_simultaneous=6)
+            await asyncio.to_thread(clean_short_notes, midi_path, midi_path, min_duration_ms=30)
+            await asyncio.to_thread(limit_polyphony, midi_path, midi_path, max_simultaneous=6)
 
             quantize_str = metadata.get('quantize', 'none')
             if quantize_str and quantize_str != 'none':
                 from app.formatter import quantize_timing, detect_bpm
-                bpm = detect_bpm(normalized)
+                bpm = await asyncio.to_thread(detect_bpm, normalized)
                 print(f"[PROCESS] BPM: {bpm:.2f}. Quantizing to {quantize_str} (strength=0.5)...")
-                quantize_timing(midi_path, midi_path, grid=quantize_str,
+                await asyncio.to_thread(quantize_timing, midi_path, midi_path, grid=quantize_str,
                                 strength=0.5, bpm=bpm, latency_offset_ms=0)
 
-            clamp_to_heartopia_scale(midi_path, filtered_midi)
+            await asyncio.to_thread(clamp_to_heartopia_scale, midi_path, filtered_midi)
         else:
             import shutil
-            shutil.copy(midi_path, filtered_midi)
+            await asyncio.to_thread(shutil.copy, midi_path, filtered_midi)
         
+        new_note_count = await asyncio.to_thread(job_manager.get_note_count, filtered_midi)
+        new_duration = await asyncio.to_thread(job_manager.get_duration, filtered_midi)
+
         await job_manager.update_job(job_id, token, progress=100, stage="Concluído!", 
                      status="completed", output_file=str(filtered_midi.resolve()),
-                     note_count=job_manager.get_note_count(filtered_midi), 
-                     duration=job_manager.get_duration(filtered_midi))
+                     note_count=new_note_count, 
+                     duration=new_duration)
         
     except Exception as e:
         import traceback
@@ -526,19 +530,19 @@ async def save_midi(
         pm.instruments.append(piano)
         
         # Grava temporariamente no disco para aplicar os filtros
-        pm.write(str(file_path))
+        await asyncio.to_thread(pm.write, str(file_path))
         
         # 2. Re-aplica filtros de compatibilidade Heartopia de forma silenciosa
         from app.formatter import clamp_to_heartopia_scale, limit_polyphony, clean_short_notes
         
         # Filtros de compatibilidade do jogo
-        clean_short_notes(file_path, file_path, min_duration_ms=30)
-        limit_polyphony(file_path, file_path, max_simultaneous=6)
-        clamp_to_heartopia_scale(file_path, file_path)
+        await asyncio.to_thread(clean_short_notes, file_path, file_path, min_duration_ms=30)
+        await asyncio.to_thread(limit_polyphony, file_path, file_path, max_simultaneous=6)
+        await asyncio.to_thread(clamp_to_heartopia_scale, file_path, file_path)
         
         # 3. Recalcula estatísticas finais
-        new_note_count = job_manager.get_note_count(file_path)
-        new_duration = job_manager.get_duration(file_path)
+        new_note_count = await asyncio.to_thread(job_manager.get_note_count, file_path)
+        new_duration = await asyncio.to_thread(job_manager.get_duration, file_path)
         
         # 4. Atualiza banco de dados Supabase via JobManager
         await job_manager.update_job(
