@@ -328,7 +328,7 @@ async def process_audio(job_id: str, token: Optional[str] = None):
         else:
             normalized = DATA_DIR / f"{job_id}_normalized.wav"
         
-        await job_manager.update_job(job_id, token, progress=40, stage="Transcrevendo com piano-transcription (Kong 2020)...")
+        await job_manager.update_job(job_id, token, progress=40, stage="Extraindo notas com Inteligência Artificial...")
         
         from app.processor import transcribe_audio
         output_dir = DATA_DIR / f"{job_id}"
@@ -478,7 +478,8 @@ async def get_midi_data(job_id: str, user = Depends(get_current_user)):
             "data": data,
             "filename": f"heartmid_{job_id}.mid",
             "note_count": job_manager.get_note_count(file_path),
-            "duration": job_manager.get_duration(file_path)
+            "duration": job_manager.get_duration(file_path),
+            "instrument": job.get("metadata", {}).get("instrument", "piano")
         },
         headers={"Cache-Control": "no-store"}
     )

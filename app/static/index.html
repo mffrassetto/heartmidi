@@ -1497,7 +1497,7 @@
 
         // MIDI PLAYER ENGINE
         class HeartmidPlayer {
-            constructor(containerId, prefix = '') {
+            constructor(containerId, prefix = '', instrument = 'piano') {
                 this.container = document.getElementById(containerId);
                 this.prefix = prefix;
                 this.midi = null;
@@ -1507,47 +1507,97 @@
                 this.notes = [];
                 this.pageSize = 5;
                 this.currentPage = 1;
+                this.instrument = instrument || 'piano';
                 
                 this.setupSampler();
             }
 
             async setupSampler() {
-                // Sampler de piano simples usando Tone.js
-                this.sampler = new Tone.Sampler({
-                    urls: {
-                        A0: "A0.mp3",
-                        C1: "C1.mp3",
-                        "D#1": "Ds1.mp3",
-                        "F#1": "Fs1.mp3",
-                        A1: "A1.mp3",
-                        C2: "C2.mp3",
-                        "D#2": "Ds2.mp3",
-                        "F#2": "Fs2.mp3",
-                        A2: "A2.mp3",
-                        C3: "C3.mp3",
-                        "D#3": "Ds3.mp3",
-                        "F#3": "Fs3.mp3",
-                        A3: "A3.mp3",
-                        C4: "C4.mp3",
-                        "D#4": "Ds4.mp3",
-                        "F#4": "Fs4.mp3",
-                        A4: "A4.mp3",
-                        C5: "C5.mp3",
-                        "D#5": "Ds5.mp3",
-                        "F#5": "Fs5.mp3",
-                        A5: "A5.mp3",
-                        C6: "C6.mp3",
-                        "D#6": "Ds6.mp3",
-                        "F#6": "Fs6.mp3",
-                        A7: "A7.mp3",
-                        C8: "C8.mp3"
-                    },
-                    release: 1,
-                    baseUrl: "https://tonejs.github.io/audio/salamander/"
-                }).toDestination();
+                if (this.sampler) {
+                    try { this.sampler.dispose(); } catch(e){}
+                }
+
+                const inst = (this.instrument || 'piano').toLowerCase();
+                if (inst === 'guitar') {
+                    // Synth to mimic a steel acoustic guitar / plucked string
+                    this.sampler = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: "triangle" },
+                        envelope: {
+                            attack: 0.01,
+                            decay: 0.8,
+                            sustain: 0.1,
+                            release: 1.5
+                        }
+                    }).toDestination();
+                } else if (inst === 'bass') {
+                    // Synth to mimic a deep bass
+                    this.sampler = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: "triangle" },
+                        envelope: {
+                            attack: 0.03,
+                            decay: 0.5,
+                            sustain: 0.7,
+                            release: 1.0
+                        }
+                    }).toDestination();
+                    
+                    const filter = new Tone.Filter({
+                        type: "lowpass",
+                        frequency: 600
+                    }).toDestination();
+                    this.sampler.connect(filter);
+                } else if (inst === 'drums') {
+                    // Percussive synth / short decay
+                    this.sampler = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: "square" },
+                        envelope: {
+                            attack: 0.005,
+                            decay: 0.1,
+                            sustain: 0,
+                            release: 0.1
+                        }
+                    }).toDestination();
+                } else {
+                    // Sampler de piano simples usando Tone.js
+                    this.sampler = new Tone.Sampler({
+                        urls: {
+                            A0: "A0.mp3",
+                            C1: "C1.mp3",
+                            "D#1": "Ds1.mp3",
+                            "F#1": "Fs1.mp3",
+                            A1: "A1.mp3",
+                            C2: "C2.mp3",
+                            "D#2": "Ds2.mp3",
+                            "F#2": "Fs2.mp3",
+                            A2: "A2.mp3",
+                            C3: "C3.mp3",
+                            "D#3": "Ds3.mp3",
+                            "F#3": "Fs3.mp3",
+                            A3: "A3.mp3",
+                            C4: "C4.mp3",
+                            "D#4": "Ds4.mp3",
+                            "F#4": "Fs4.mp3",
+                            A4: "A4.mp3",
+                            C5: "C5.mp3",
+                            "D#5": "Ds5.mp3",
+                            "F#5": "Fs5.mp3",
+                            A5: "A5.mp3",
+                            C6: "C6.mp3",
+                            "D#6": "Ds6.mp3",
+                            "F#6": "Fs6.mp3",
+                            A7: "A7.mp3",
+                            C8: "C8.mp3"
+                        },
+                        release: 1,
+                        baseUrl: "https://tonejs.github.io/audio/salamander/"
+                    }).toDestination();
+                }
             }
 
-            async loadMidi(base64Data) {
+            async loadMidi(base64Data, instrument = 'piano') {
+                this.instrument = instrument || 'piano';
+                await this.setupSampler();
+                
                 const raw = atob(base64Data);
                 const uint8 = new Uint8Array(raw.length);
                 for (let i = 0; i < raw.length; i++) uint8[i] = raw.charCodeAt(i);
@@ -1746,7 +1796,12 @@
                 document.getElementById(`tool-${tool}`).classList.add('active');
             }
 
-            async loadMidi(base64Data) {
+            async loadMidi(base64Data, instrument = 'piano') {
+                this.instrument = instrument || 'piano';
+                if (this.sampler) {
+                    try { this.sampler.dispose(); } catch(e){}
+                    this.sampler = null;
+                }
                 const raw = atob(base64Data);
                 const uint8 = new Uint8Array(raw.length);
                 for (let i = 0; i < raw.length; i++) uint8[i] = raw.charCodeAt(i);
@@ -2078,12 +2133,51 @@
                     
                     // Garante que temos um sampler para tocar
                     if (!this.sampler) {
-                        this.sampler = new Tone.Sampler({
-                            urls: { C4: "C4.mp3" },
-                            baseUrl: "https://tonejs.github.io/audio/salamander/",
-                            release: 1
-                        }).toDestination();
-                        await Tone.loaded();
+                        const inst = (this.instrument || 'piano').toLowerCase();
+                        if (inst === 'guitar') {
+                            this.sampler = new Tone.PolySynth(Tone.Synth, {
+                                oscillator: { type: "triangle" },
+                                envelope: {
+                                    attack: 0.01,
+                                    decay: 0.8,
+                                    sustain: 0.1,
+                                    release: 1.5
+                                }
+                            }).toDestination();
+                        } else if (inst === 'bass') {
+                            this.sampler = new Tone.PolySynth(Tone.Synth, {
+                                oscillator: { type: "triangle" },
+                                envelope: {
+                                    attack: 0.03,
+                                    decay: 0.5,
+                                    sustain: 0.7,
+                                    release: 1.0
+                                }
+                            }).toDestination();
+                            
+                            const filter = new Tone.Filter({
+                                type: "lowpass",
+                                frequency: 600
+                            }).toDestination();
+                            this.sampler.connect(filter);
+                        } else if (inst === 'drums') {
+                            this.sampler = new Tone.PolySynth(Tone.Synth, {
+                                oscillator: { type: "square" },
+                                envelope: {
+                                    attack: 0.005,
+                                    decay: 0.1,
+                                    sustain: 0,
+                                    release: 0.1
+                                }
+                            }).toDestination();
+                        } else {
+                            this.sampler = new Tone.Sampler({
+                                urls: { C4: "C4.mp3" },
+                                baseUrl: "https://tonejs.github.io/audio/salamander/",
+                                release: 1
+                            }).toDestination();
+                            await Tone.loaded();
+                        }
                     }
 
                     const sampler = this.sampler;
@@ -2179,8 +2273,8 @@
                     </div>
                 `;
                 
-                const player = new HeartmidPlayer(`player-container-${id}`, `player-${id}-`);
-                await player.loadMidi(data.data);
+                const player = new HeartmidPlayer(`player-container-${id}`, `player-${id}-`, data.instrument);
+                await player.loadMidi(data.data, data.instrument);
                 
                 document.getElementById(`player-${id}-play-btn`).onclick = () => player.toggle();
                 window.activePlayers[id] = player;
@@ -2205,10 +2299,10 @@
                 midiSection.classList.remove('hidden');
                 
                 // Inicializa player principal
-                if (!window.mainPlayer) window.mainPlayer = new HeartmidPlayer('midi-player-section', 'main-');
+                if (!window.mainPlayer) window.mainPlayer = new HeartmidPlayer('midi-player-section', 'main-', metadata.instrument || 'piano');
                 const res = await fetchWithAuth(`${API_URL}/midi-data/${data.id}`);
                 const midiData = await res.json();
-                await window.mainPlayer.loadMidi(midiData.data);
+                await window.mainPlayer.loadMidi(midiData.data, midiData.instrument);
                 document.getElementById('main-play-btn').onclick = () => window.mainPlayer.toggle();
             } else {
                 document.getElementById('notes').parentElement.classList.add('hidden');
@@ -2247,7 +2341,7 @@
                 editorView.classList.remove('hidden');
                 
                 if (!editorInstance) editorInstance = new HeartmidEditor();
-                await editorInstance.loadMidi(data.data);
+                await editorInstance.loadMidi(data.data, data.instrument);
                 
                 // Centraliza o scroll no meio (C4)
                 const container = document.getElementById('canvas-scroll-container');
