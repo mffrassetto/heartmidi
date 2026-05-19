@@ -479,7 +479,7 @@ async def get_midi_data(job_id: str, user = Depends(get_current_user)):
             "filename": f"heartmid_{job_id}.mid",
             "note_count": job_manager.get_note_count(file_path),
             "duration": job_manager.get_duration(file_path),
-            "instrument": job.get("metadata", {}).get("instrument", "piano")
+            "instrument": job.get("instrument", "piano")
         },
         headers={"Cache-Control": "no-store"}
     )
