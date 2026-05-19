@@ -2299,7 +2299,7 @@
                 midiSection.classList.remove('hidden');
                 
                 // Inicializa player principal
-                if (!window.mainPlayer) window.mainPlayer = new HeartmidPlayer('midi-player-section', 'main-', metadata.instrument || 'piano');
+                if (!window.mainPlayer) window.mainPlayer = new HeartmidPlayer('midi-player-section', 'main-', data.instrument || 'piano');
                 const res = await fetchWithAuth(`${API_URL}/midi-data/${data.id}`);
                 const midiData = await res.json();
                 await window.mainPlayer.loadMidi(midiData.data, midiData.instrument);

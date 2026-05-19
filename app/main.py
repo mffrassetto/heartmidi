@@ -348,7 +348,7 @@ async def process_audio(job_id: str, token: Optional[str] = None):
         await asyncio.to_thread(shutil.copy, midi_path, filtered_midi)
         
         metadata = job.get("metadata", {})
-        instrument_str = metadata.get('instrument', 'piano')
+        instrument_str = job.get('instrument', 'piano')
         
         quantize_str = metadata.get('quantize', 'none')
         if quantize_str and quantize_str != 'none':
@@ -517,7 +517,7 @@ async def save_midi(
         
         # Determine correct MIDI Program based on job's instrument metadata
         metadata = job.get("metadata", {})
-        instrument_str = metadata.get('instrument', 'piano')
+        instrument_str = job.get('instrument', 'piano')
         prog_num = 0
         if instrument_str.lower() == 'guitar':
             prog_num = 25
