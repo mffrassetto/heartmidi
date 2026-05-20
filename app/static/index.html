@@ -633,6 +633,21 @@
                         <label>Link do YouTube</label>
                         <input type="url" id="youtube-url" placeholder="https://youtube.com/watch?v=...">
                     </div>
+                    <!-- Time Range -->
+                    <div id="url-time-range" style="display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap;">
+                        <div class="input-group" style="flex: 1; min-width: 140px; margin-bottom: 0;">
+                            <label style="display: flex; align-items: center; gap: 0.4rem;">
+                                <span>Início (s)</span>
+                                <span id="url-t-badge" style="display:none; font-size: 0.7rem; background: rgba(75,226,119,0.15); color: var(--primary); padding: 0.1rem 0.4rem; border-radius: 0.25rem; border: 1px solid rgba(75,226,119,0.3);">detectado da URL</span>
+                            </label>
+                            <input type="number" id="url-start-time" min="0" placeholder="0" style="background: var(--surface-dim); border: 1px solid var(--border-subtle); color: white; padding: 0.75rem 1rem; border-radius: 0.5rem; width: 100%;">
+                        </div>
+                        <div class="input-group" style="flex: 1; min-width: 140px; margin-bottom: 0;">
+                            <label>Fim (s) <span style="color: var(--muted); font-size: 0.8em;">(opcional)</span></label>
+                            <input type="number" id="url-end-time" min="0" placeholder="até o fim" style="background: var(--surface-dim); border: 1px solid var(--border-subtle); color: white; padding: 0.75rem 1rem; border-radius: 0.5rem; width: 100%;">
+                        </div>
+                        <div id="url-time-hint" style="display:none; font-size: 0.75rem; color: var(--muted); align-self: flex-end; padding-bottom: 0.75rem; flex-basis: 100%;">⏱ Trecho selecionado: <span id="url-time-hint-text"></span></div>
+                    </div>
                 </div>
 
                 <!-- File Input -->
@@ -649,6 +664,21 @@
                     <div class="input-group">
                         <label>Link do YouTube (MP3)</label>
                         <input type="url" id="mp3-url" placeholder="https://youtube.com/watch?v=...">
+                    </div>
+                    <!-- Time Range -->
+                    <div style="display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 1rem;">
+                        <div class="input-group" style="flex: 1; min-width: 140px; margin-bottom: 0;">
+                            <label style="display: flex; align-items: center; gap: 0.4rem;">
+                                <span>Início (s)</span>
+                                <span id="mp3-t-badge" style="display:none; font-size: 0.7rem; background: rgba(75,226,119,0.15); color: var(--primary); padding: 0.1rem 0.4rem; border-radius: 0.25rem; border: 1px solid rgba(75,226,119,0.3);">detectado da URL</span>
+                            </label>
+                            <input type="number" id="mp3-start-time" min="0" placeholder="0" style="background: var(--surface-dim); border: 1px solid var(--border-subtle); color: white; padding: 0.75rem 1rem; border-radius: 0.5rem; width: 100%;">
+                        </div>
+                        <div class="input-group" style="flex: 1; min-width: 140px; margin-bottom: 0;">
+                            <label>Fim (s) <span style="color: var(--muted); font-size: 0.8em;">(opcional)</span></label>
+                            <input type="number" id="mp3-end-time" min="0" placeholder="até o fim" style="background: var(--surface-dim); border: 1px solid var(--border-subtle); color: white; padding: 0.75rem 1rem; border-radius: 0.5rem; width: 100%;">
+                        </div>
+                        <div id="mp3-time-hint" style="display:none; font-size: 0.75rem; color: var(--muted); align-self: flex-end; padding-bottom: 0.75rem; flex-basis: 100%;">⏱ Trecho selecionado: <span id="mp3-time-hint-text"></span></div>
                     </div>
                     <div class="input-group">
                         <label>Qualidade do MP3</label>
@@ -1062,6 +1092,87 @@
             });
         });
 
+        // --- YouTube URL Timestamp Auto-Detection ---
+        function parseYouTubeTimestamp(url) {
+            try {
+                const u = new URL(url);
+                // Supports ?t=90, ?t=1h30m20s, ?start=90, and youtu.be/?t=
+                let t = u.searchParams.get('t') || u.searchParams.get('start');
+                if (!t) return null;
+                // Already a plain number
+                if (/^\d+$/.test(t)) return parseInt(t, 10);
+                // Parse h/m/s format like 1h30m20s or 1m30s
+                let total = 0;
+                const hMatch = t.match(/(\d+)h/);
+                const mMatch = t.match(/(\d+)m/);
+                const sMatch = t.match(/(\d+)s/);
+                if (hMatch) total += parseInt(hMatch[1]) * 3600;
+                if (mMatch) total += parseInt(mMatch[1]) * 60;
+                if (sMatch) total += parseInt(sMatch[1]);
+                return total > 0 ? total : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function formatSeconds(s) {
+            const h = Math.floor(s / 3600);
+            const m = Math.floor((s % 3600) / 60);
+            const sec = s % 60;
+            if (h > 0) return `${h}h ${m}m ${sec}s`;
+            if (m > 0) return `${m}m ${sec}s`;
+            return `${sec}s`;
+        }
+
+        function updateTimeHint(prefix) {
+            const start = parseInt(document.getElementById(`${prefix}-start-time`).value) || 0;
+            const endVal = document.getElementById(`${prefix}-end-time`).value;
+            const hint = document.getElementById(`${prefix}-time-hint`);
+            const hintText = document.getElementById(`${prefix}-time-hint-text`);
+            if (start > 0 || endVal) {
+                hint.style.display = 'block';
+                const endStr = endVal ? formatSeconds(parseInt(endVal)) : 'fim do vídeo';
+                hintText.textContent = `${formatSeconds(start)} → ${endStr}`;
+            } else {
+                hint.style.display = 'none';
+            }
+        }
+
+        function wireUrlTimestampDetection(inputId, startId, badgeId, prefix) {
+            const urlInput = document.getElementById(inputId);
+            const startInput = document.getElementById(startId);
+            const badge = document.getElementById(badgeId);
+
+            urlInput.addEventListener('input', () => {
+                const t = parseYouTubeTimestamp(urlInput.value);
+                if (t !== null) {
+                    startInput.value = t;
+                    badge.style.display = 'inline';
+                } else {
+                    badge.style.display = 'none';
+                }
+                updateTimeHint(prefix);
+            });
+            urlInput.addEventListener('paste', (e) => {
+                // Paste fires before input updates value, so wait a tick
+                setTimeout(() => {
+                    const t = parseYouTubeTimestamp(urlInput.value);
+                    if (t !== null) {
+                        startInput.value = t;
+                        badge.style.display = 'inline';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                    updateTimeHint(prefix);
+                }, 0);
+            });
+            startInput.addEventListener('input', () => updateTimeHint(prefix));
+            document.getElementById(`${prefix}-end-time`).addEventListener('input', () => updateTimeHint(prefix));
+        }
+
+        wireUrlTimestampDetection('youtube-url', 'url-start-time', 'url-t-badge', 'url');
+        wireUrlTimestampDetection('mp3-url', 'mp3-start-time', 'mp3-t-badge', 'mp3');
+
         // File Drop Zone
         const dropZone = document.getElementById('drop-zone');
         const fileInputEl = document.getElementById('audio-file');
@@ -1102,8 +1213,12 @@
             if (activeTab === 'url') {
                 const url = document.getElementById('youtube-url').value;
                 if (!url) return alert('Por favor, insira uma URL do YouTube.');
+                const startTime = document.getElementById('url-start-time').value;
+                const endTime = document.getElementById('url-end-time').value;
                 formData.append('source', 'url');
                 formData.append('url', url);
+                if (startTime) formData.append('start_time', startTime);
+                if (endTime) formData.append('end_time', endTime);
             } else if (activeTab === 'file') {
                 const file = fileInputEl.files[0];
                 if (!file) return alert('Por favor, selecione um arquivo de áudio.');
@@ -1113,9 +1228,13 @@
                 endpoint = '/youtube-to-mp3';
                 const url = document.getElementById('mp3-url').value;
                 const bitrate = document.getElementById('mp3-bitrate').value;
+                const startTime = document.getElementById('mp3-start-time').value;
+                const endTime = document.getElementById('mp3-end-time').value;
                 if (!url) return alert('Por favor, insira uma URL do YouTube.');
                 formData.append('url', url);
                 formData.append('bitrate', bitrate);
+                if (startTime) formData.append('start_time', startTime);
+                if (endTime) formData.append('end_time', endTime);
             }
             
             convertBtn.disabled = true;

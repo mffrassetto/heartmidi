@@ -61,7 +61,9 @@ class JobManager:
                 "quantize": kwargs.get("quantize", "none"),
                 "bitrate": kwargs.get("bitrate", "320k"),
                 "note_count": 0,
-                "duration": "00:00"
+                "duration": "00:00",
+                "start_time": kwargs.get("start_time"),
+                "end_time": kwargs.get("end_time"),
             }
         }
         try:
@@ -155,6 +157,8 @@ async def convert_audio(
     instrument: str = Form("piano"),
     apply_filters: bool = Form(True),
     quantize: str = Form("none"),
+    start_time: Optional[int] = Form(None),
+    end_time: Optional[int] = Form(None),
     user = Depends(get_current_user),
     authorization: str = Header(None)
 ):
@@ -180,7 +184,8 @@ async def convert_audio(
                 await f.write(content)
         else:
             job_id = await job_manager.create_job(admin_client, user.id, source, url=url, file_name=url,
-                                          instrument=instrument, apply_filters=apply_filters, quantize=quantize)
+                                          instrument=instrument, apply_filters=apply_filters, quantize=quantize,
+                                          start_time=start_time, end_time=end_time)
 
         token = authorization.split(" ")[1] if authorization else None
         asyncio.create_task(process_audio(job_id, token))
@@ -197,6 +202,8 @@ async def convert_audio(
 async def youtube_to_mp3(
     url: str = Form(...),
     bitrate: str = Form("320k"),
+    start_time: Optional[int] = Form(None),
+    end_time: Optional[int] = Form(None),
     user = Depends(get_current_user),
     authorization: str = Header(None)
 ):
@@ -207,7 +214,9 @@ async def youtube_to_mp3(
         from app.auth import get_supabase_admin_client
         admin_client = await get_supabase_admin_client()
         
-        job_id = await job_manager.create_job(admin_client, user.id, source="url", url=url, file_name=url, job_type="mp3", bitrate=bitrate)
+        job_id = await job_manager.create_job(admin_client, user.id, source="url", url=url, file_name=url,
+                                              job_type="mp3", bitrate=bitrate,
+                                              start_time=start_time, end_time=end_time)
         
         token = authorization.split(" ")[1] if authorization else None
         asyncio.create_task(process_mp3_task(job_id, token))
@@ -236,10 +245,16 @@ async def process_mp3_task(job_id: str, token: Optional[str] = None):
         bitrate = metadata.get("bitrate", "320k")
         if bitrate.isdigit():
             bitrate = f"{bitrate}k"
+        
+        start_time = metadata.get("start_time")
+        end_time = metadata.get("end_time")
             
         await job_manager.update_job(job_id, token, progress=50, stage=f"Convertendo para MP3 ({bitrate})...")
         
-        mp3_path = await asyncio.to_thread(download_youtube_mp3, job["url"], output_dir, bitrate=bitrate)
+        mp3_path = await asyncio.to_thread(
+            download_youtube_mp3, job["url"], output_dir,
+            bitrate=bitrate, start_time=start_time, end_time=end_time
+        )
         
         await job_manager.update_job(job_id, token, progress=100, stage="Concluído!", 
                              status="completed", output_file=str(mp3_path.resolve()))
@@ -299,16 +314,23 @@ async def process_audio(job_id: str, token: Optional[str] = None):
     try:
         await job_manager.update_job(job_id, token, progress=10, stage="Baixando áudio...")
         
+        metadata = job.get("metadata", {})
+        apply_filters = metadata.get("apply_filters", True)
+        start_time = metadata.get("start_time")
+        end_time = metadata.get("end_time")
+        
         if job["source"] == "url" and job.get("url"):
             from app.downloader import download_audio, normalize_audio
             audio_path = DATA_DIR / f"{job_id}_source"
             audio_path.mkdir(exist_ok=True)
             
-            downloaded = await asyncio.to_thread(download_audio, job["url"], audio_path)
+            downloaded = await asyncio.to_thread(download_audio, job["url"], audio_path,
+                                                 start_time=start_time, end_time=end_time)
             
             normalized = DATA_DIR / f"{job_id}_normalized.wav"
             try:
-                await asyncio.to_thread(normalize_audio, downloaded, normalized)
+                await asyncio.to_thread(normalize_audio, downloaded, normalized,
+                                        apply_filters=apply_filters)
             except Exception as e:
                 print(f"[AVISO] FFmpeg não disponível, usando arquivo original: {e}")
                 import shutil
@@ -320,7 +342,8 @@ async def process_audio(job_id: str, token: Optional[str] = None):
             uploaded_path = DATA_DIR / f"{job_id}_uploaded{orig_ext}"
             normalized = DATA_DIR / f"{job_id}_normalized.wav"
             try:
-                await asyncio.to_thread(normalize_audio, uploaded_path, normalized)
+                await asyncio.to_thread(normalize_audio, uploaded_path, normalized,
+                                        apply_filters=apply_filters)
             except Exception as e:
                 print(f"[AVISO] FFmpeg não disponível, usando arquivo original: {e}")
                 import shutil
